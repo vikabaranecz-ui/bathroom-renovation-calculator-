@@ -397,6 +397,7 @@
       }
     } catch {}
     clearSession();
+    state.projectId = null;
     state.estimateId = null;
     closeGallery();
     byId('app').hidden = true;
