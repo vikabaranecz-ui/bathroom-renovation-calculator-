@@ -394,3 +394,29 @@ input:focus,select:focus,textarea:focus{
   .client-summary{margin-top:14px}
   .client-summary>div{padding:9px 0}
 }
+
+/* Interaction model: edit mode vs clean client presentation */
+.client-mode .editor-column{display:none!important}
+.client-mode .summary-column{width:100%;max-width:820px;margin:0 auto}
+.client-mode .workspace{display:block!important}
+.client-mode .summary-card{position:static!important;top:auto!important}
+.client-mode .breakdown-panel{margin-top:16px}
+.client-mode .gallery-toolbar{display:none!important}
+.client-mode .gallery-delete{display:none!important}
+
+.gallery-empty{
+  grid-column:1/-1;min-height:180px;border:1px dashed #cbd5e1;border-radius:18px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:7px;padding:24px;text-align:center;background:#f8fafc;color:#64748b
+}
+.gallery-empty strong{color:#0f172a;font-size:14px}
+.gallery-empty span{max-width:320px;font-size:12px;line-height:1.5}
+
+@media(max-width:720px){
+  .client-mode .workspace{padding:10px!important}
+  .client-mode .summary-column{max-width:none}
+  .client-mode .mobile-dock{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+  .client-mode #mobileNewBtn{display:none!important}
+  .client-mode #mobileGalleryBtn{display:flex!important}
+  .client-mode #mobileSaveBtn{display:flex!important}
+}
