@@ -21,6 +21,8 @@
     demoHeavyMaterials: 700,
     tileHoursPerM2: 1.55,
     tileMaterialsPerM2: 13,
+    mortexHoursPerM2: 2.0,
+    mortexMaterialsPerM2: 32,
     waterproofHoursPerM2: 0.45,
     waterproofMaterialsPerM2: 16,
     waterMoveHours: 4,
@@ -37,7 +39,8 @@
     pricingProfileId: null,
     estimateId: null,
     lastResult: null,
-    busy: false
+    busy: false,
+    galleryObjectUrls: []
   };
 
   const byId = (id) => document.getElementById(id);
@@ -173,6 +176,185 @@
     return data;
   }
 
+
+  function encodeStoragePath(path) {
+    return String(path).split('/').map(encodeURIComponent).join('/');
+  }
+
+  function clearGalleryObjectUrls() {
+    state.galleryObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+    state.galleryObjectUrls = [];
+  }
+
+  async function refreshGalleryCount() {
+    if (!state.estimateId) {
+      byId('galleryCount').textContent = '0';
+      return 0;
+    }
+    try {
+      const rows = await rest('bathroom_estimate_photos?estimate_id=eq.' + encodeURIComponent(state.estimateId) + '&select=id');
+      const count = Array.isArray(rows) ? rows.length : 0;
+      byId('galleryCount').textContent = String(count);
+      return count;
+    } catch {
+      byId('galleryCount').textContent = '—';
+      return 0;
+    }
+  }
+
+  async function downloadPrivatePhoto(storagePath) {
+    const token = await getValidToken();
+    const response = await fetch(
+      SUPABASE_URL + '/storage/v1/object/authenticated/bathroom-estimate-photos/' + encodeStoragePath(storagePath),
+      { headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + token } }
+    );
+    if (!response.ok) throw new Error('Could not load photo');
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    state.galleryObjectUrls.push(url);
+    return url;
+  }
+
+  async function loadGallery() {
+    clearGalleryObjectUrls();
+    const grid = byId('galleryGrid');
+    if (!state.estimateId) {
+      grid.innerHTML = '<p class="muted">Save the estimate before adding photos.</p>';
+      byId('galleryCount').textContent = '0';
+      return;
+    }
+
+    grid.innerHTML = '<div class="gallery-loading">Loading photos…</div>';
+    const rows = await rest(
+      'bathroom_estimate_photos?estimate_id=eq.' + encodeURIComponent(state.estimateId) +
+      '&select=id,storage_path,caption,created_at&order=created_at.asc'
+    );
+    const photos = Array.isArray(rows) ? rows : [];
+    byId('galleryCount').textContent = String(photos.length);
+
+    if (!photos.length) {
+      grid.innerHTML = '<p class="muted">No photos yet. Add inspection or reference photos for this bathroom.</p>';
+      return;
+    }
+
+    const rendered = await Promise.all(photos.map(async (photo) => {
+      try {
+        const url = await downloadPrivatePhoto(photo.storage_path);
+        return '<div class="gallery-card" data-photo-id="' + escapeHtml(photo.id) + '" data-storage-path="' + escapeHtml(photo.storage_path) + '">' +
+          '<img src="' + url + '" alt="Bathroom inspection photo" />' +
+          '<button class="gallery-delete" type="button">Delete</button></div>';
+      } catch {
+        return '<div class="gallery-card" data-photo-id="' + escapeHtml(photo.id) + '" data-storage-path="' + escapeHtml(photo.storage_path) + '">' +
+          '<div class="photo-fallback">Photo saved, but preview is not available in this browser.</div>' +
+          '<button class="gallery-delete" type="button">Delete</button></div>';
+      }
+    }));
+
+    grid.innerHTML = rendered.join('');
+    grid.querySelectorAll('.gallery-delete').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const card = button.closest('.gallery-card');
+        if (!card) return;
+        try {
+          button.disabled = true;
+          const token = await getValidToken();
+          const storagePath = card.getAttribute('data-storage-path');
+          const response = await fetch(
+            SUPABASE_URL + '/storage/v1/object/bathroom-estimate-photos/' + encodeStoragePath(storagePath),
+            {
+              method: 'DELETE',
+              headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + token }
+            }
+          );
+          if (!response.ok) throw new Error('Could not delete photo file');
+          await rest('bathroom_estimate_photos?id=eq.' + encodeURIComponent(card.getAttribute('data-photo-id')), {
+            method: 'DELETE',
+            prefer: 'return=minimal'
+          });
+          await loadGallery();
+          toast('Photo deleted.');
+        } catch (error) {
+          button.disabled = false;
+          toast(error.message || 'Could not delete photo.', 'error');
+        }
+      });
+    });
+  }
+
+  async function uploadGalleryFiles(fileList) {
+    const files = Array.from(fileList || []).filter((file) => file && file.type && file.type.startsWith('image/'));
+    if (!files.length) return;
+
+    if (!state.estimateId) {
+      toast('Saving the estimate first…');
+      await saveEstimate();
+    }
+    if (!state.estimateId) throw new Error('Save the estimate before adding photos.');
+
+    const token = await getValidToken();
+    const userId = currentUserId();
+    setSync('Uploading photos', 'busy');
+
+    for (let i = 0; i < files.length; i += 1) {
+      const file = files[i];
+      const safeName = (file.name || 'photo').replace(/[^a-zA-Z0-9._-]/g, '-').slice(-90);
+      const storagePath = userId + '/' + state.estimateId + '/' + Date.now() + '-' + i + '-' + safeName;
+      const response = await fetch(
+        SUPABASE_URL + '/storage/v1/object/bathroom-estimate-photos/' + encodeStoragePath(storagePath),
+        {
+          method: 'POST',
+          headers: {
+            apikey: SUPABASE_KEY,
+            Authorization: 'Bearer ' + token,
+            'Content-Type': file.type || 'application/octet-stream',
+            'x-upsert': 'false'
+          },
+          body: file
+        }
+      );
+      if (!response.ok) {
+        const detail = await response.text();
+        throw new Error('Photo upload failed: ' + (detail || response.status));
+      }
+
+      await rest('bathroom_estimate_photos', {
+        method: 'POST',
+        body: {
+          estimate_id: state.estimateId,
+          user_id: userId,
+          storage_path: storagePath,
+          caption: ''
+        },
+        prefer: 'return=minimal'
+      });
+    }
+
+    setSync('Synced');
+    await loadGallery();
+    toast(files.length === 1 ? 'Photo added.' : files.length + ' photos added.');
+  }
+
+  async function openGallery() {
+    try {
+      if (!state.estimateId) {
+        toast('Saving the estimate before opening the gallery…');
+        await saveEstimate();
+      }
+      if (!state.estimateId) return;
+      byId('galleryProjectLabel').textContent =
+        byId('clientName').value.trim() || byId('projectAddress').value.trim() || 'Saved estimate';
+      byId('galleryModal').hidden = false;
+      await loadGallery();
+    } catch (error) {
+      toast(error.message || 'Could not open gallery.', 'error');
+    }
+  }
+
+  function closeGallery() {
+    byId('galleryModal').hidden = true;
+    clearGalleryObjectUrls();
+  }
+
   function currentUserId() {
     if (!state.session) return null;
     return parseJwt(state.session.access_token).sub || null;
@@ -208,6 +390,7 @@
     } catch {}
     clearSession();
     state.estimateId = null;
+    closeGallery();
     byId('app').hidden = true;
     byId('authGate').hidden = false;
     byId('authPassword').value = '';
@@ -298,17 +481,23 @@
     const height = num('height');
     const floor = length * width;
     const grossWalls = 2 * (length + width) * height;
-    const tiledWalls = checked('tileWalls') ? grossWalls * clamp(num('wallTilePct'), 0, 100) / 100 : 0;
-    const tiledFloor = checked('tileFloor') ? floor : 0;
+    const wallFinishArea = grossWalls * clamp(num('wallTilePct'), 0, 100) / 100;
+    const wallFinish = byId('wallFinish').value;
+    const floorFinish = byId('floorFinish').value;
+    const tiledWalls = wallFinish === 'tile' ? wallFinishArea : 0;
+    const mortexWalls = wallFinish === 'mortex' ? wallFinishArea : 0;
+    const tiledFloor = floorFinish === 'tile' ? floor : 0;
+    const mortexFloor = floorFinish === 'mortex' ? floor : 0;
     const tileArea = tiledFloor + tiledWalls;
+    const mortexArea = mortexFloor + mortexWalls;
     const tileBuyArea = tileArea * (1 + clamp(num('tileWastePct'), 0, 30) / 100);
-    const wetWallArea = checked('shower') ? Math.min(tiledWalls || grossWalls, 8) : 0;
-    const waterproofArea = checked('waterproofing') ? tiledFloor + wetWallArea : 0;
+    const wetWallArea = checked('shower') ? Math.min(wallFinishArea || grossWalls, 8) : 0;
+    const waterproofArea = checked('waterproofing') ? floor + wetWallArea : 0;
 
     byId('floorArea').textContent = floor.toFixed(1) + ' m²';
-    byId('wallArea').textContent = tiledWalls.toFixed(1) + ' m²';
+    byId('wallArea').textContent = wallFinishArea.toFixed(1) + ' m²';
     byId('tileBuyArea').textContent = tileBuyArea.toFixed(1) + ' m²';
-    byId('waterproofArea').textContent = waterproofArea.toFixed(1) + ' m²';
+    byId('mortexArea').textContent = mortexArea.toFixed(1) + ' m²';
 
     const lines = [];
     const demolition = byId('demolition').value;
@@ -325,11 +514,17 @@
     if (checked('waterproofing')) {
       addLine(lines, 'Waterproofing system', waterproofArea * p.waterproofHoursPerM2, waterproofArea * p.waterproofMaterialsPerM2, round1(waterproofArea) + ' m²');
     }
-    if (checked('tileFloor')) {
+    if (tiledFloor > 0) {
       addLine(lines, 'Floor tiling', tiledFloor * p.tileHoursPerM2, tiledFloor * p.tileMaterialsPerM2, round1(tiledFloor) + ' m²');
     }
-    if (checked('tileWalls')) {
+    if (tiledWalls > 0) {
       addLine(lines, 'Wall tiling', tiledWalls * p.tileHoursPerM2, tiledWalls * p.tileMaterialsPerM2, round1(tiledWalls) + ' m²');
+    }
+    if (mortexFloor > 0) {
+      addLine(lines, 'Mortex floor finish', mortexFloor * p.mortexHoursPerM2, mortexFloor * p.mortexMaterialsPerM2, round1(mortexFloor) + ' m²');
+    }
+    if (mortexWalls > 0) {
+      addLine(lines, 'Mortex wall finish', mortexWalls * p.mortexHoursPerM2, mortexWalls * p.mortexMaterialsPerM2, round1(mortexWalls) + ' m²');
     }
 
     const waterMoves = num('waterMoves');
@@ -384,7 +579,7 @@
     else if (confidenceCount >= 4) confidenceLabel = 'Good estimate';
 
     const result = {
-      areas: { floor, grossWalls, tiledWalls, tiledFloor, tileArea, tileBuyArea, waterproofArea },
+      areas: { floor, grossWalls, wallFinishArea, tiledWalls, tiledFloor, mortexWalls, mortexFloor, mortexArea, tileArea, tileBuyArea, waterproofArea },
       lines,
       totalHours,
       laborCost,
@@ -447,7 +642,9 @@
       width: num('width'),
       height: num('height'),
       wallTilePct: num('wallTilePct'),
-      tileWastePct: num('tileWastePct')
+      tileWastePct: num('tileWastePct'),
+      wallFinish: byId('wallFinish').value,
+      floorFinish: byId('floorFinish').value
     };
   }
 
@@ -457,8 +654,8 @@
       substrate: byId('substrate').value,
       wasteRemoval: checked('wasteRemoval'),
       waterproofing: checked('waterproofing'),
-      tileFloor: checked('tileFloor'),
-      tileWalls: checked('tileWalls'),
+      wallFinish: byId('wallFinish').value,
+      floorFinish: byId('floorFinish').value,
       ceilingPaint: checked('ceilingPaint'),
       floorHeating: checked('floorHeating'),
       waterMoves: num('waterMoves'),
@@ -510,12 +707,12 @@
     setValue('tileWastePct', room.tileWastePct);
 
     const scope = record.scope || {};
+    setValue('wallFinish', scope.wallFinish || room.wallFinish || (scope.tileWalls === false ? 'none' : 'tile'));
+    setValue('floorFinish', scope.floorFinish || room.floorFinish || (scope.tileFloor === false ? 'none' : 'tile'));
     setValue('demolition', scope.demolition);
     setValue('substrate', scope.substrate);
     setCheck('wasteRemoval', scope.wasteRemoval);
     setCheck('waterproofing', scope.waterproofing);
-    setCheck('tileFloor', scope.tileFloor);
-    setCheck('tileWalls', scope.tileWalls);
     setCheck('ceilingPaint', scope.ceilingPaint);
     setCheck('floorHeating', scope.floorHeating);
     setValue('waterMoves', scope.waterMoves);
@@ -545,6 +742,7 @@
     }
 
     calculate();
+    refreshGalleryCount();
     window.scrollTo({ top: 0, behavior: 'smooth' });
     toast('Estimate loaded.');
   }
@@ -552,6 +750,7 @@
   function resetEstimate() {
     state.estimateId = null;
     byId('estimateState').textContent = 'New estimate';
+    byId('galleryCount').textContent = '0';
     byId('clientName').value = '';
     byId('clientPhone').value = '';
     byId('projectAddress').value = '';
@@ -562,12 +761,12 @@
     setValue('wallTilePct', 75);
     setValue('tileWastePct', 10);
     setValue('tilePrice', 45);
+    setValue('wallFinish', 'tile');
+    setValue('floorFinish', 'tile');
     setValue('demolition', 'full');
     setValue('substrate', 'local');
     setCheck('wasteRemoval', true);
     setCheck('waterproofing', true);
-    setCheck('tileFloor', true);
-    setCheck('tileWalls', true);
     setCheck('ceilingPaint', true);
     setCheck('floorHeating', false);
     setValue('waterMoves', 3);
@@ -751,6 +950,20 @@
     });
     byId('refreshBtn').addEventListener('click', loadRecent);
     byId('printBtn').addEventListener('click', () => window.print());
+    byId('galleryBtn').addEventListener('click', openGallery);
+    byId('galleryUploadBtn').addEventListener('click', () => byId('galleryInput').click());
+    byId('galleryInput').addEventListener('change', async (event) => {
+      try {
+        await uploadGalleryFiles(event.target.files);
+      } catch (error) {
+        setSync('Upload failed', 'error');
+        toast(error.message || 'Could not upload photos.', 'error');
+      } finally {
+        event.target.value = '';
+      }
+    });
+    byId('galleryCloseBtn').addEventListener('click', closeGallery);
+    document.querySelectorAll('[data-gallery-close]').forEach((el) => el.addEventListener('click', closeGallery));
 
     byId('clientViewBtn').addEventListener('click', () => {
       const active = document.body.classList.toggle('client-mode');
