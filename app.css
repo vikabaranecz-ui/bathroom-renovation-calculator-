@@ -349,3 +349,48 @@ input:focus,select:focus,textarea:focus{
 @media print{
   .summary-card,.breakdown-panel{box-shadow:none}
 }
+
+/* Fix mobile overlap: summary must participate in normal document flow */
+@media(max-width:720px){
+  .summary-column,
+  .summary-card,
+  .client-mode .summary-column,
+  .client-mode .summary-card{
+    position:static!important;
+    top:auto!important;
+  }
+
+  .workspace,
+  .client-mode .workspace{
+    display:flex!important;
+    flex-direction:column!important;
+  }
+
+  .summary-column{order:0!important;width:100%}
+  .editor-column{order:1!important;width:100%}
+
+  .summary-card{
+    max-height:none!important;
+    overflow:visible!important;
+    margin:0!important;
+  }
+
+  .breakdown-panel{margin-top:0}
+  .panel,.summary-card{width:100%}
+
+  .topbar{
+    z-index:70;
+  }
+
+  .mobile-dock{
+    z-index:90;
+  }
+}
+
+/* Make the first mobile screen useful instead of dominated by one tall summary */
+@media(max-width:430px){
+  .summary-card .internal-summary{display:none}
+  .summary-card .fine-print{margin-top:10px}
+  .client-summary{margin-top:14px}
+  .client-summary>div{padding:9px 0}
+}
