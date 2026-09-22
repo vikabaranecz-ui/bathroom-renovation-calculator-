@@ -1,0 +1,776 @@
+(() => {
+  'use strict';
+
+  const SUPABASE_URL = 'https://xyvpresvfubmmfweyasf.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_4J-yHzPGBf1udf_UR8DS1w_j3mQo_WU';
+  const SESSION_KEY = 'reno_bathroom_estimator_session_v1';
+
+  const DEFAULT_PRICING = {
+    laborRate: 30,
+    overheadPct: 12,
+    riskPct: 8,
+    marginPct: 35,
+    vatRate: 21,
+    roundTo: 50,
+    marginOnProducts: true,
+    demoLightHours: 16,
+    demoFullHours: 32,
+    demoHeavyHours: 48,
+    demoLightMaterials: 180,
+    demoFullMaterials: 420,
+    demoHeavyMaterials: 700,
+    tileHoursPerM2: 1.55,
+    tileMaterialsPerM2: 13,
+    waterproofHoursPerM2: 0.45,
+    waterproofMaterialsPerM2: 16,
+    waterMoveHours: 4,
+    waterMoveMaterials: 90,
+    drainMoveHours: 6,
+    drainMoveMaterials: 140,
+    electricHours: 1.6,
+    electricMaterials: 45
+  };
+
+  const state = {
+    session: null,
+    pricing: Object.assign({}, DEFAULT_PRICING),
+    pricingProfileId: null,
+    estimateId: null,
+    lastResult: null,
+    busy: false
+  };
+
+  const byId = (id) => document.getElementById(id);
+  const num = (id) => Math.max(0, Number(byId(id).value) || 0);
+  const checked = (id) => Boolean(byId(id).checked);
+  const euro = (value) => new Intl.NumberFormat('nl-BE', {
+    style: 'currency',
+    currency: 'EUR',
+    maximumFractionDigits: 0
+  }).format(Number.isFinite(value) ? value : 0);
+  const round1 = (value) => Math.round(value * 10) / 10;
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+  const nowIso = () => new Date().toISOString();
+
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function setSync(message, type) {
+    const el = byId('syncStatus');
+    el.textContent = message;
+    el.className = 'sync-status' + (type ? ' ' + type : '');
+  }
+
+  let toastTimer = null;
+  function toast(message, type) {
+    const el = byId('toast');
+    el.textContent = message;
+    el.className = 'toast show' + (type === 'error' ? ' error' : '');
+    window.clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(() => { el.className = 'toast'; }, 2600);
+  }
+
+  function parseJwt(token) {
+    try {
+      const part = token.split('.')[1];
+      const normalized = part.replace(/-/g, '+').replace(/_/g, '/');
+      const padded = normalized + '='.repeat((4 - normalized.length % 4) % 4);
+      return JSON.parse(atob(padded));
+    } catch {
+      return {};
+    }
+  }
+
+  function persistSession(payload) {
+    const expiresIn = Number(payload.expires_in || 3600);
+    const session = {
+      access_token: payload.access_token,
+      refresh_token: payload.refresh_token,
+      expires_at: Date.now() + expiresIn * 1000
+    };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    state.session = session;
+    return session;
+  }
+
+  function clearSession() {
+    localStorage.removeItem(SESSION_KEY);
+    state.session = null;
+  }
+
+  async function authRequest(path, options) {
+    const config = options || {};
+    const headers = Object.assign({
+      apikey: SUPABASE_KEY,
+      'Content-Type': 'application/json'
+    }, config.headers || {});
+    const response = await fetch(SUPABASE_URL + '/auth/v1/' + path, {
+      method: config.method || 'POST',
+      headers,
+      body: config.body ? JSON.stringify(config.body) : undefined
+    });
+    let data = null;
+    try { data = await response.json(); } catch { data = {}; }
+    if (!response.ok) {
+      const message = data.msg || data.message || data.error_description || 'Authentication failed.';
+      throw new Error(message);
+    }
+    return data;
+  }
+
+  async function refreshSession() {
+    if (!state.session || !state.session.refresh_token) throw new Error('No refresh token');
+    const data = await authRequest('token?grant_type=refresh_token', {
+      body: { refresh_token: state.session.refresh_token }
+    });
+    return persistSession(data);
+  }
+
+  async function getValidToken() {
+    if (!state.session) throw new Error('Not signed in');
+    if (Date.now() > Number(state.session.expires_at || 0) - 60000) {
+      await refreshSession();
+    }
+    return state.session.access_token;
+  }
+
+  async function rest(path, options, retried) {
+    const config = options || {};
+    const token = await getValidToken();
+    const headers = Object.assign({
+      apikey: SUPABASE_KEY,
+      Authorization: 'Bearer ' + token,
+      'Content-Type': 'application/json'
+    }, config.headers || {});
+    if (config.prefer) headers.Prefer = config.prefer;
+
+    const response = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
+      method: config.method || 'GET',
+      headers,
+      body: config.body == null ? undefined : JSON.stringify(config.body)
+    });
+
+    if (response.status === 401 && !retried) {
+      await refreshSession();
+      return rest(path, options, true);
+    }
+
+    const text = await response.text();
+    let data = null;
+    if (text) {
+      try { data = JSON.parse(text); } catch { data = text; }
+    }
+    if (!response.ok) {
+      const message = data && (data.message || data.hint || data.details);
+      throw new Error(message || ('Supabase request failed (' + response.status + ')'));
+    }
+    return data;
+  }
+
+  function currentUserId() {
+    if (!state.session) return null;
+    return parseJwt(state.session.access_token).sub || null;
+  }
+
+  async function signIn(email, password) {
+    const data = await authRequest('token?grant_type=password', {
+      body: { email: email.trim(), password }
+    });
+    persistSession(data);
+    await enterApp();
+  }
+
+  async function signUp(email, password) {
+    const data = await authRequest('signup', {
+      body: { email: email.trim(), password }
+    });
+    if (data.access_token) {
+      persistSession(data);
+      await enterApp();
+      return 'Account created and signed in.';
+    }
+    return 'Account created. Check your email if confirmation is required, then sign in.';
+  }
+
+  async function signOut() {
+    try {
+      if (state.session && state.session.access_token) {
+        await authRequest('logout', {
+          headers: { Authorization: 'Bearer ' + state.session.access_token }
+        });
+      }
+    } catch {}
+    clearSession();
+    state.estimateId = null;
+    byId('app').hidden = true;
+    byId('authGate').hidden = false;
+    byId('authPassword').value = '';
+    byId('authMessage').textContent = '';
+  }
+
+  function syncPricingInputs() {
+    document.querySelectorAll('[data-price]').forEach((el) => {
+      const key = el.getAttribute('data-price');
+      el.value = state.pricing[key];
+    });
+    document.querySelectorAll('[data-price-check]').forEach((el) => {
+      const key = el.getAttribute('data-price-check');
+      el.checked = Boolean(state.pricing[key]);
+    });
+  }
+
+  function collectPricingFromInputs() {
+    document.querySelectorAll('[data-price]').forEach((el) => {
+      const key = el.getAttribute('data-price');
+      state.pricing[key] = Math.max(0, Number(el.value) || 0);
+    });
+    document.querySelectorAll('[data-price-check]').forEach((el) => {
+      const key = el.getAttribute('data-price-check');
+      state.pricing[key] = Boolean(el.checked);
+    });
+  }
+
+  async function loadPricing() {
+    setSync('Loading rates', 'busy');
+    const rows = await rest('bathroom_pricing_profiles?is_default=eq.true&select=id,config&limit=1');
+    if (Array.isArray(rows) && rows.length) {
+      state.pricingProfileId = rows[0].id;
+      state.pricing = Object.assign({}, DEFAULT_PRICING, rows[0].config || {});
+    } else {
+      state.pricingProfileId = null;
+      state.pricing = Object.assign({}, DEFAULT_PRICING);
+    }
+    syncPricingInputs();
+    calculate();
+    setSync('Synced');
+  }
+
+  async function savePricing() {
+    collectPricingFromInputs();
+    const userId = currentUserId();
+    if (!userId) throw new Error('Not signed in');
+    setSync('Saving rates', 'busy');
+
+    const payload = {
+      user_id: userId,
+      name: 'Default',
+      is_default: true,
+      config: state.pricing,
+      updated_at: nowIso()
+    };
+
+    if (state.pricingProfileId) {
+      await rest('bathroom_pricing_profiles?id=eq.' + encodeURIComponent(state.pricingProfileId), {
+        method: 'PATCH',
+        body: payload,
+        prefer: 'return=minimal'
+      });
+    } else {
+      const created = await rest('bathroom_pricing_profiles', {
+        method: 'POST',
+        body: payload,
+        prefer: 'return=representation'
+      });
+      if (Array.isArray(created) && created[0]) state.pricingProfileId = created[0].id;
+    }
+    setSync('Synced');
+    toast('Pricing profile saved.');
+  }
+
+  function addLine(lines, name, hours, materials, meta) {
+    const safeHours = Math.max(0, Number(hours) || 0);
+    const safeMaterials = Math.max(0, Number(materials) || 0);
+    if (safeHours === 0 && safeMaterials === 0) return;
+    lines.push({ name, hours: safeHours, materials: safeMaterials, meta: meta || '' });
+  }
+
+  function calculate() {
+    collectPricingFromInputs();
+    const p = state.pricing;
+    const length = num('length');
+    const width = num('width');
+    const height = num('height');
+    const floor = length * width;
+    const grossWalls = 2 * (length + width) * height;
+    const tiledWalls = checked('tileWalls') ? grossWalls * clamp(num('wallTilePct'), 0, 100) / 100 : 0;
+    const tiledFloor = checked('tileFloor') ? floor : 0;
+    const tileArea = tiledFloor + tiledWalls;
+    const tileBuyArea = tileArea * (1 + clamp(num('tileWastePct'), 0, 30) / 100);
+    const wetWallArea = checked('shower') ? Math.min(tiledWalls || grossWalls, 8) : 0;
+    const waterproofArea = checked('waterproofing') ? tiledFloor + wetWallArea : 0;
+
+    byId('floorArea').textContent = floor.toFixed(1) + ' m²';
+    byId('wallArea').textContent = tiledWalls.toFixed(1) + ' m²';
+    byId('tileBuyArea').textContent = tileBuyArea.toFixed(1) + ' m²';
+    byId('waterproofArea').textContent = waterproofArea.toFixed(1) + ' m²';
+
+    const lines = [];
+    const demolition = byId('demolition').value;
+    if (demolition === 'light') addLine(lines, 'Light demolition', p.demoLightHours, p.demoLightMaterials);
+    if (demolition === 'full') addLine(lines, 'Full bathroom strip-out', p.demoFullHours, p.demoFullMaterials);
+    if (demolition === 'heavy') addLine(lines, 'Heavy demolition / difficult access', p.demoHeavyHours, p.demoHeavyMaterials);
+    if (checked('wasteRemoval') && demolition !== 'none') addLine(lines, 'Debris removal & disposal', 4, 350);
+
+    const substrate = byId('substrate').value;
+    if (substrate === 'local') addLine(lines, 'Local substrate repairs', 10, 300);
+    if (substrate === 'major') addLine(lines, 'Major levelling / substrate repair', 28, 800);
+    if (substrate === 'rebuild') addLine(lines, 'Rebuild walls / floor base', 45, 1300);
+
+    if (checked('waterproofing')) {
+      addLine(lines, 'Waterproofing system', waterproofArea * p.waterproofHoursPerM2, waterproofArea * p.waterproofMaterialsPerM2, round1(waterproofArea) + ' m²');
+    }
+    if (checked('tileFloor')) {
+      addLine(lines, 'Floor tiling', tiledFloor * p.tileHoursPerM2, tiledFloor * p.tileMaterialsPerM2, round1(tiledFloor) + ' m²');
+    }
+    if (checked('tileWalls')) {
+      addLine(lines, 'Wall tiling', tiledWalls * p.tileHoursPerM2, tiledWalls * p.tileMaterialsPerM2, round1(tiledWalls) + ' m²');
+    }
+
+    const waterMoves = num('waterMoves');
+    const drainMoves = num('drainMoves');
+    const electricPoints = num('electricPoints');
+    if (waterMoves) addLine(lines, 'Move water connections', waterMoves * p.waterMoveHours, waterMoves * p.waterMoveMaterials, waterMoves + ' point(s)');
+    if (drainMoves) addLine(lines, 'Move drains', drainMoves * p.drainMoveHours, drainMoves * p.drainMoveMaterials, drainMoves + ' drain(s)');
+    if (electricPoints) addLine(lines, 'Electrical work', electricPoints * p.electricHours, electricPoints * p.electricMaterials, electricPoints + ' point(s)');
+
+    if (checked('shower')) addLine(lines, 'Install walk-in shower', 12, 180);
+    if (checked('bath')) addLine(lines, 'Install bathtub', 10, 160);
+    if (checked('toilet')) addLine(lines, 'Install toilet', 8, 120);
+    if (checked('vanity')) addLine(lines, 'Install vanity & basin', 6, 90);
+    if (checked('radiator')) addLine(lines, 'Install towel radiator', 5, 110);
+    if (checked('ventilation')) addLine(lines, 'Mechanical ventilation', 5, 180);
+    if (checked('ceilingPaint')) addLine(lines, 'Ceiling repair / painting', Math.max(6, floor * 0.7), Math.max(100, floor * 16));
+    if (checked('floorHeating')) addLine(lines, 'Electric floor heating', Math.max(5, floor * 0.6), floor * 48, round1(floor) + ' m²');
+
+    const totalHours = lines.reduce((sum, line) => sum + line.hours, 0);
+    const constructionMaterials = lines.reduce((sum, line) => sum + line.materials, 0);
+    const laborCost = totalHours * p.laborRate;
+
+    let productCost = 0;
+    if (tileArea > 0) productCost += tileBuyArea * num('tilePrice');
+    if (checked('shower')) productCost += num('allowShower');
+    if (checked('bath')) productCost += num('allowBath');
+    if (checked('toilet')) productCost += num('allowToilet');
+    if (checked('vanity')) productCost += num('allowVanity');
+    if (checked('radiator') || checked('ventilation')) productCost += num('allowMechanical');
+    productCost += num('allowOther');
+
+    const coreDirectCost = laborCost + constructionMaterials;
+    const overhead = coreDirectCost * clamp(p.overheadPct, 0, 100) / 100;
+    const risk = (coreDirectCost + overhead) * clamp(p.riskPct, 0, 100) / 100;
+    const coreBasis = coreDirectCost + overhead + risk;
+    const margin = clamp(p.marginPct, 1, 70) / 100;
+    const sellCore = coreBasis / (1 - margin);
+    const sellProducts = p.marginOnProducts ? productCost / (1 - margin) : productCost;
+    const rawExVat = sellCore + sellProducts;
+    const roundTo = Math.max(1, Number(p.roundTo) || 1);
+    const totalExVat = Math.ceil(rawExVat / roundTo) * roundTo;
+    const vatRate = clamp(p.vatRate, 0, 100) / 100;
+    const totalIncVat = totalExVat * (1 + vatRate);
+    const totalCostBasis = coreBasis + productCost;
+    const grossContribution = totalExVat - totalCostBasis;
+    const actualMargin = totalExVat > 0 ? grossContribution / totalExVat * 100 : 0;
+
+    const confidenceChecks = Array.from(document.querySelectorAll('.confidence'));
+    const confidenceCount = confidenceChecks.filter((el) => el.checked).length;
+    let confidenceLabel = 'Preliminary';
+    if (confidenceCount >= 6) confidenceLabel = 'Ready for formal quote';
+    else if (confidenceCount >= 4) confidenceLabel = 'Good estimate';
+
+    const result = {
+      areas: { floor, grossWalls, tiledWalls, tiledFloor, tileArea, tileBuyArea, waterproofArea },
+      lines,
+      totalHours,
+      laborCost,
+      constructionMaterials,
+      productCost,
+      overhead,
+      risk,
+      coreBasis,
+      totalCostBasis,
+      grossContribution,
+      actualMargin,
+      totalExVat,
+      vatRate,
+      totalIncVat,
+      confidenceCount,
+      confidenceLabel
+    };
+    state.lastResult = result;
+
+    byId('totalIncVat').textContent = euro(totalIncVat);
+    byId('totalExVat').textContent = euro(totalExVat) + ' excl. VAT';
+    byId('summarySize').textContent = floor.toFixed(1) + ' m²';
+    byId('summaryHours').textContent = Math.round(totalHours) + ' h';
+    byId('summaryProducts').textContent = euro(productCost);
+    byId('laborCost').textContent = euro(laborCost);
+    byId('constructionMaterials').textContent = euro(constructionMaterials);
+    byId('productCost').textContent = euro(productCost);
+    byId('overheadCost').textContent = euro(overhead);
+    byId('riskCost').textContent = euro(risk);
+    byId('costBasis').textContent = euro(totalCostBasis);
+    byId('grossContribution').textContent = euro(grossContribution);
+    byId('actualMargin').textContent = actualMargin.toFixed(1) + '%';
+    byId('confidenceBadge').textContent = confidenceLabel;
+
+    renderBreakdown(lines);
+    return result;
+  }
+
+  function renderBreakdown(lines) {
+    const clientMode = document.body.classList.contains('client-mode');
+    const el = byId('breakdown');
+    if (!lines.length) {
+      el.innerHTML = '<p class="muted">Add scope items to see the breakdown.</p>';
+      return;
+    }
+    el.innerHTML = lines.map((line) => {
+      const direct = line.hours * state.pricing.laborRate + line.materials;
+      const detail = line.meta ? line.meta + ' · ' + round1(line.hours) + ' worker-h' : round1(line.hours) + ' worker-h';
+      return '<div class="breakdown-row"><div><strong>' + escapeHtml(line.name) + '</strong><small>' +
+        escapeHtml(clientMode ? (line.meta || 'Included in scope') : detail) +
+        '</small></div><div class="breakdown-price">' +
+        (clientMode ? 'Included' : euro(direct)) +
+        '</div></div>';
+    }).join('');
+  }
+
+  function collectRoom() {
+    return {
+      length: num('length'),
+      width: num('width'),
+      height: num('height'),
+      wallTilePct: num('wallTilePct'),
+      tileWastePct: num('tileWastePct')
+    };
+  }
+
+  function collectScope() {
+    return {
+      demolition: byId('demolition').value,
+      substrate: byId('substrate').value,
+      wasteRemoval: checked('wasteRemoval'),
+      waterproofing: checked('waterproofing'),
+      tileFloor: checked('tileFloor'),
+      tileWalls: checked('tileWalls'),
+      ceilingPaint: checked('ceilingPaint'),
+      floorHeating: checked('floorHeating'),
+      waterMoves: num('waterMoves'),
+      drainMoves: num('drainMoves'),
+      electricPoints: num('electricPoints'),
+      shower: checked('shower'),
+      bath: checked('bath'),
+      toilet: checked('toilet'),
+      vanity: checked('vanity'),
+      radiator: checked('radiator'),
+      ventilation: checked('ventilation'),
+      confidence: Array.from(document.querySelectorAll('.confidence')).map((el) => el.checked)
+    };
+  }
+
+  function collectSelections() {
+    return {
+      tilePrice: num('tilePrice'),
+      allowShower: num('allowShower'),
+      allowBath: num('allowBath'),
+      allowToilet: num('allowToilet'),
+      allowVanity: num('allowVanity'),
+      allowMechanical: num('allowMechanical'),
+      allowOther: num('allowOther')
+    };
+  }
+
+  function setValue(id, value) {
+    if (byId(id) && value != null) byId(id).value = value;
+  }
+
+  function setCheck(id, value) {
+    if (byId(id)) byId(id).checked = Boolean(value);
+  }
+
+  function fillEstimate(record) {
+    state.estimateId = record.id;
+    byId('estimateState').textContent = 'Saved estimate';
+    setValue('clientName', record.client_name || '');
+    setValue('clientPhone', record.client_phone || '');
+    setValue('projectAddress', record.project_address || '');
+    setValue('notes', record.notes || '');
+
+    const room = record.room || {};
+    setValue('length', room.length);
+    setValue('width', room.width);
+    setValue('height', room.height);
+    setValue('wallTilePct', room.wallTilePct);
+    setValue('tileWastePct', room.tileWastePct);
+
+    const scope = record.scope || {};
+    setValue('demolition', scope.demolition);
+    setValue('substrate', scope.substrate);
+    setCheck('wasteRemoval', scope.wasteRemoval);
+    setCheck('waterproofing', scope.waterproofing);
+    setCheck('tileFloor', scope.tileFloor);
+    setCheck('tileWalls', scope.tileWalls);
+    setCheck('ceilingPaint', scope.ceilingPaint);
+    setCheck('floorHeating', scope.floorHeating);
+    setValue('waterMoves', scope.waterMoves);
+    setValue('drainMoves', scope.drainMoves);
+    setValue('electricPoints', scope.electricPoints);
+    setCheck('shower', scope.shower);
+    setCheck('bath', scope.bath);
+    setCheck('toilet', scope.toilet);
+    setCheck('vanity', scope.vanity);
+    setCheck('radiator', scope.radiator);
+    setCheck('ventilation', scope.ventilation);
+    const confidence = Array.isArray(scope.confidence) ? scope.confidence : [];
+    Array.from(document.querySelectorAll('.confidence')).forEach((el, i) => { el.checked = Boolean(confidence[i]); });
+
+    const selections = record.selections || {};
+    setValue('tilePrice', selections.tilePrice);
+    setValue('allowShower', selections.allowShower);
+    setValue('allowBath', selections.allowBath);
+    setValue('allowToilet', selections.allowToilet);
+    setValue('allowVanity', selections.allowVanity);
+    setValue('allowMechanical', selections.allowMechanical);
+    setValue('allowOther', selections.allowOther);
+
+    if (record.pricing_snapshot && Object.keys(record.pricing_snapshot).length) {
+      state.pricing = Object.assign({}, DEFAULT_PRICING, record.pricing_snapshot);
+      syncPricingInputs();
+    }
+
+    calculate();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    toast('Estimate loaded.');
+  }
+
+  function resetEstimate() {
+    state.estimateId = null;
+    byId('estimateState').textContent = 'New estimate';
+    byId('clientName').value = '';
+    byId('clientPhone').value = '';
+    byId('projectAddress').value = '';
+    byId('notes').value = '';
+    setValue('length', 3);
+    setValue('width', 2.5);
+    setValue('height', 2.5);
+    setValue('wallTilePct', 75);
+    setValue('tileWastePct', 10);
+    setValue('tilePrice', 45);
+    setValue('demolition', 'full');
+    setValue('substrate', 'local');
+    setCheck('wasteRemoval', true);
+    setCheck('waterproofing', true);
+    setCheck('tileFloor', true);
+    setCheck('tileWalls', true);
+    setCheck('ceilingPaint', true);
+    setCheck('floorHeating', false);
+    setValue('waterMoves', 3);
+    setValue('drainMoves', 1);
+    setValue('electricPoints', 5);
+    setCheck('shower', true);
+    setCheck('bath', false);
+    setCheck('toilet', true);
+    setCheck('vanity', true);
+    setCheck('radiator', true);
+    setCheck('ventilation', true);
+    setValue('allowShower', 1200);
+    setValue('allowBath', 0);
+    setValue('allowToilet', 650);
+    setValue('allowVanity', 1200);
+    setValue('allowMechanical', 500);
+    setValue('allowOther', 300);
+    document.querySelectorAll('.confidence').forEach((el) => { el.checked = false; });
+    calculate();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function saveEstimate() {
+    if (state.busy) return;
+    state.busy = true;
+    setSync('Saving estimate', 'busy');
+    try {
+      const result = calculate();
+      const userId = currentUserId();
+      if (!userId) throw new Error('Not signed in');
+
+      const payload = {
+        client_name: byId('clientName').value.trim(),
+        client_phone: byId('clientPhone').value.trim(),
+        project_address: byId('projectAddress').value.trim(),
+        status: 'estimate',
+        room: collectRoom(),
+        scope: collectScope(),
+        selections: collectSelections(),
+        pricing_snapshot: state.pricing,
+        calculations: result,
+        total_ex_vat: Number(result.totalExVat.toFixed(2)),
+        vat_rate: Number(result.vatRate.toFixed(4)),
+        total_inc_vat: Number(result.totalIncVat.toFixed(2)),
+        notes: byId('notes').value.trim(),
+        updated_at: nowIso()
+      };
+
+      if (state.estimateId) {
+        const updated = await rest('bathroom_estimates?id=eq.' + encodeURIComponent(state.estimateId), {
+          method: 'PATCH',
+          body: payload,
+          prefer: 'return=representation'
+        });
+        if (Array.isArray(updated) && updated[0]) fillEstimate(updated[0]);
+      } else {
+        payload.user_id = userId;
+        const created = await rest('bathroom_estimates', {
+          method: 'POST',
+          body: payload,
+          prefer: 'return=representation'
+        });
+        if (Array.isArray(created) && created[0]) fillEstimate(created[0]);
+      }
+      await loadRecent();
+      setSync('Synced');
+      toast('Estimate saved.');
+    } catch (error) {
+      setSync('Save failed', 'error');
+      toast(error.message || 'Could not save estimate.', 'error');
+    } finally {
+      state.busy = false;
+    }
+  }
+
+  async function loadRecent() {
+    try {
+      const rows = await rest('bathroom_estimates?select=id,client_name,project_address,total_inc_vat,status,updated_at&order=updated_at.desc&limit=12');
+      const list = byId('recentList');
+      if (!Array.isArray(rows) || !rows.length) {
+        list.innerHTML = '<p class="muted">No saved estimates yet.</p>';
+        return;
+      }
+      list.innerHTML = rows.map((row) => {
+        const client = row.client_name || 'Unnamed client';
+        const address = row.project_address || 'No address';
+        const date = row.updated_at ? new Date(row.updated_at).toLocaleDateString('nl-BE') : '';
+        return '<button class="recent-item" type="button" data-estimate-id="' + escapeHtml(row.id) + '">' +
+          '<div><strong>' + escapeHtml(client) + '</strong><span>' + escapeHtml(address) + ' · ' + escapeHtml(date) + '</span></div>' +
+          '<b>' + euro(Number(row.total_inc_vat || 0)) + '</b></button>';
+      }).join('');
+      list.querySelectorAll('[data-estimate-id]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          try {
+            setSync('Loading estimate', 'busy');
+            const rows = await rest('bathroom_estimates?id=eq.' + encodeURIComponent(button.getAttribute('data-estimate-id')) + '&select=*&limit=1');
+            if (Array.isArray(rows) && rows[0]) fillEstimate(rows[0]);
+            setSync('Synced');
+          } catch (error) {
+            setSync('Load failed', 'error');
+            toast(error.message || 'Could not load estimate.', 'error');
+          }
+        });
+      });
+    } catch (error) {
+      byId('recentList').innerHTML = '<p class="muted">Could not load saved estimates.</p>';
+      setSync('Sync issue', 'error');
+    }
+  }
+
+  async function enterApp() {
+    byId('authGate').hidden = true;
+    byId('app').hidden = false;
+    setSync('Connecting', 'busy');
+    try {
+      await loadPricing();
+      await loadRecent();
+      calculate();
+    } catch (error) {
+      setSync('Sync issue', 'error');
+      toast(error.message || 'Connected, but some data could not load.', 'error');
+      calculate();
+    }
+  }
+
+  async function restoreSession() {
+    try {
+      const raw = localStorage.getItem(SESSION_KEY);
+      if (!raw) return false;
+      state.session = JSON.parse(raw);
+      if (!state.session || !state.session.access_token) {
+        clearSession();
+        return false;
+      }
+      await getValidToken();
+      return true;
+    } catch {
+      clearSession();
+      return false;
+    }
+  }
+
+  function bindEvents() {
+    byId('authForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const message = byId('authMessage');
+      message.className = 'message';
+      message.textContent = 'Signing in…';
+      try {
+        await signIn(byId('authEmail').value, byId('authPassword').value);
+        message.textContent = '';
+      } catch (error) {
+        message.className = 'message error';
+        message.textContent = error.message || 'Sign in failed.';
+      }
+    });
+
+    byId('signUpBtn').addEventListener('click', async () => {
+      const message = byId('authMessage');
+      message.className = 'message';
+      message.textContent = 'Creating account…';
+      try {
+        const result = await signUp(byId('authEmail').value, byId('authPassword').value);
+        message.className = 'message ok';
+        message.textContent = result;
+      } catch (error) {
+        message.className = 'message error';
+        message.textContent = error.message || 'Could not create account.';
+      }
+    });
+
+    byId('signOutBtn').addEventListener('click', signOut);
+    byId('saveBtn').addEventListener('click', saveEstimate);
+    byId('saveBtnMobile').addEventListener('click', saveEstimate);
+    byId('newBtn').addEventListener('click', resetEstimate);
+    byId('saveRatesBtn').addEventListener('click', async () => {
+      try { await savePricing(); } catch (error) {
+        setSync('Save failed', 'error');
+        toast(error.message || 'Could not save rates.', 'error');
+      }
+    });
+    byId('refreshBtn').addEventListener('click', loadRecent);
+    byId('printBtn').addEventListener('click', () => window.print());
+
+    byId('clientViewBtn').addEventListener('click', () => {
+      const active = document.body.classList.toggle('client-mode');
+      byId('clientViewBtn').textContent = active ? 'Internal view' : 'Client view';
+      calculate();
+    });
+
+    document.querySelectorAll('#app input, #app select, #app textarea').forEach((el) => {
+      el.addEventListener('input', calculate);
+      el.addEventListener('change', calculate);
+    });
+  }
+
+  async function init() {
+    bindEvents();
+    syncPricingInputs();
+    calculate();
+    const restored = await restoreSession();
+    if (restored) await enterApp();
+  }
+
+  init();
+})();
