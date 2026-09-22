@@ -233,7 +233,7 @@
     byId('galleryCount').textContent = String(photos.length);
 
     if (!photos.length) {
-      grid.innerHTML = '<p class="muted">No photos yet. Add inspection or reference photos for this bathroom.</p>';
+      grid.innerHTML = '<div class="gallery-empty"><strong>No photos yet</strong><span>Take a photo on site or choose photos from your library.</span></div>';
       return;
     }
 
@@ -347,7 +347,8 @@
       }
       if (!state.estimateId) return;
       byId('galleryProjectLabel').textContent =
-        byId('clientName').value.trim() || byId('projectAddress').value.trim() || 'Saved estimate';
+        (byId('clientName').value.trim() || byId('projectAddress').value.trim() || 'Saved estimate') +
+        (document.body.classList.contains('client-mode') ? ' · View only' : ' · Private photos');
       byId('galleryModal').hidden = false;
       await loadGallery();
     } catch (error) {
@@ -753,7 +754,16 @@
     toast('Estimate loaded.');
   }
 
+  function setClientMode(active) {
+    document.body.classList.toggle('client-mode', Boolean(active));
+    byId('clientViewBtn').textContent = active ? 'Internal view' : 'Client view';
+    byId('mobileClientLabel').textContent = active ? 'Internal' : 'Client';
+    calculate();
+  }
+
   function resetEstimate() {
+    closeGallery();
+    setClientMode(false);
     state.estimateId = null;
     byId('estimateState').textContent = 'New estimate';
     byId('galleryCount').textContent = '0';
@@ -761,38 +771,41 @@
     byId('clientPhone').value = '';
     byId('projectAddress').value = '';
     byId('notes').value = '';
-    setValue('length', 3);
-    setValue('width', 2.5);
-    setValue('height', 2.5);
-    setValue('wallTilePct', 75);
-    setValue('tileWastePct', 10);
-    setValue('tilePrice', 45);
-    setValue('wallFinish', 'tile');
-    setValue('floorFinish', 'tile');
-    setValue('demolition', 'full');
-    setValue('substrate', 'local');
-    setCheck('wasteRemoval', true);
-    setCheck('waterproofing', true);
-    setCheck('ceilingPaint', true);
+    setValue('length', 0);
+    setValue('width', 0);
+    setValue('height', 0);
+    setValue('wallTilePct', 0);
+    setValue('tileWastePct', 0);
+    setValue('tilePrice', 0);
+    setValue('wallFinish', 'none');
+    setValue('floorFinish', 'none');
+    setValue('demolition', 'none');
+    setValue('substrate', 'good');
+    setCheck('wasteRemoval', false);
+    setCheck('waterproofing', false);
+    setCheck('ceilingPaint', false);
     setCheck('floorHeating', false);
-    setValue('waterMoves', 3);
-    setValue('drainMoves', 1);
-    setValue('electricPoints', 5);
-    setCheck('shower', true);
+    setValue('waterMoves', 0);
+    setValue('drainMoves', 0);
+    setValue('electricPoints', 0);
+    setCheck('shower', false);
     setCheck('bath', false);
-    setCheck('toilet', true);
-    setCheck('vanity', true);
-    setCheck('radiator', true);
-    setCheck('ventilation', true);
-    setValue('allowShower', 1200);
+    setCheck('toilet', false);
+    setCheck('vanity', false);
+    setCheck('radiator', false);
+    setCheck('ventilation', false);
+    setValue('allowShower', 0);
     setValue('allowBath', 0);
-    setValue('allowToilet', 650);
-    setValue('allowVanity', 1200);
-    setValue('allowMechanical', 500);
-    setValue('allowOther', 300);
+    setValue('allowToilet', 0);
+    setValue('allowVanity', 0);
+    setValue('allowMechanical', 0);
+    setValue('allowOther', 0);
     document.querySelectorAll('.confidence').forEach((el) => { el.checked = false; });
     calculate();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    const firstPanel = document.querySelector('.editor-column .panel');
+    if (firstPanel) firstPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => byId('clientName').focus({ preventScroll: true }), 350);
+    toast('New estimate started.');
   }
 
   async function saveEstimate() {
@@ -986,10 +999,10 @@
     document.querySelectorAll('[data-gallery-close]').forEach((el) => el.addEventListener('click', closeGallery));
 
     function toggleClientView() {
-      const active = document.body.classList.toggle('client-mode');
-      byId('clientViewBtn').textContent = active ? 'Internal view' : 'Client view';
-      byId('mobileClientLabel').textContent = active ? 'Internal' : 'Client';
-      calculate();
+      const active = !document.body.classList.contains('client-mode');
+      setClientMode(active);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      toast(active ? 'Client presentation opened.' : 'Internal editing opened.');
     }
 
     byId('clientViewBtn').addEventListener('click', toggleClientView);
