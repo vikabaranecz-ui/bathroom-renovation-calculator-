@@ -162,8 +162,13 @@
     });
 
     if (response.status === 401 && !retried) {
-      await refreshSession();
-      return rest(path, options, true);
+      try {
+        await refreshSession();
+        return rest(path, options, true);
+      } catch {
+        clearSession();
+        throw new Error('Your session expired. Please sign in again.');
+      }
     }
 
     const text = await response.text();
@@ -904,40 +909,16 @@
         if (Array.isArray(refreshed) && refreshed[0]) savedRecord = refreshed[0];
       }
 
-      if (savedRecord) {
-        await rest('bathroom_calculation_versions', {
-          method: 'POST',
-          body: {
-            project_id: state.projectId,
-            estimate_id: savedRecord.id,
-            user_id: userId,
-            snapshot: {
-              client_name: savedRecord.client_name,
-              client_phone: savedRecord.client_phone,
-              project_address: savedRecord.project_address,
-              status: savedRecord.status,
-              room: savedRecord.room,
-              scope: savedRecord.scope,
-              selections: savedRecord.selections,
-              pricing_snapshot: savedRecord.pricing_snapshot,
-              calculations: savedRecord.calculations,
-              notes: savedRecord.notes
-            },
-            total_ex_vat: savedRecord.total_ex_vat,
-            vat_rate: savedRecord.vat_rate,
-            total_inc_vat: savedRecord.total_inc_vat,
-            saved_at: nowIso()
-          },
-          prefer: 'return=minimal'
-        });
-      }
+      // Project linking and calculation versioning are guaranteed by database triggers.
+      // The browser only needs to save the estimate itself.
+      try { await loadRecent(); } catch {}
 
-      await loadRecent();
       setSync('Synced');
-      toast('Project and calculation saved to cloud.');
+      toast('Estimate and project history saved.');
     } catch (error) {
+      const message = error && error.message ? error.message : 'Could not save estimate.';
       setSync('Save failed', 'error');
-      toast(error.message || 'Could not save estimate.', 'error');
+      toast('Save failed: ' + message, 'error');
     } finally {
       state.busy = false;
     }
