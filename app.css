@@ -467,3 +467,41 @@ input:focus,select:focus,textarea:focus{
     order:0!important;
   }
 }
+
+/* Mobile: scope/details first, Estimated Client Price as the final block */
+@media(max-width:720px){
+  .summary-column{
+    display:flex!important;
+    flex-direction:column!important;
+  }
+
+  .summary-column .breakdown-panel{
+    order:0!important;
+  }
+
+  .summary-column > .panel.internal-only{
+    order:1!important;
+  }
+
+  .summary-column .summary-card{
+    order:2!important;
+    margin-top:10px!important;
+  }
+
+  .summary-column::before{
+    content:"Estimate details";
+  }
+
+  .client-mode .summary-column{
+    display:flex!important;
+    flex-direction:column!important;
+  }
+
+  .client-mode .breakdown-panel{
+    order:0!important;
+  }
+
+  .client-mode .summary-card{
+    order:2!important;
+  }
+}
