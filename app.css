@@ -56,3 +56,5 @@ textarea{resize:vertical;min-height:68px}input:focus,select:focus,textarea:focus
 .gallery-loading{grid-column:1/-1;padding:28px;text-align:center;color:#777}
 @media(max-width:720px){.gallery-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.gallery-dialog{padding:14px}.summary-actions{grid-template-columns:1fr 1fr 1fr}}
 @media(max-width:470px){.gallery-grid{grid-template-columns:1fr 1fr}.summary-actions .btn{padding:9px 7px;font-size:10px}}
+
+.client-mode .summary-actions{grid-template-columns:1fr 1fr}
