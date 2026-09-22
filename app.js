@@ -606,6 +606,7 @@
 
     byId('totalIncVat').textContent = euro(totalIncVat);
     byId('totalExVat').textContent = euro(totalExVat) + ' excl. VAT';
+    byId('mobileTotal').textContent = euro(totalIncVat);
     byId('summarySize').textContent = floor.toFixed(1) + ' m²';
     byId('summaryHours').textContent = Math.round(totalHours) + ' h';
     byId('summaryProducts').textContent = euro(productCost);
@@ -946,7 +947,9 @@
     byId('signOutBtn').addEventListener('click', signOut);
     byId('saveBtn').addEventListener('click', saveEstimate);
     byId('saveBtnMobile').addEventListener('click', saveEstimate);
+    byId('mobileSaveBtn').addEventListener('click', saveEstimate);
     byId('newBtn').addEventListener('click', resetEstimate);
+    byId('mobileNewBtn').addEventListener('click', resetEstimate);
     byId('saveRatesBtn').addEventListener('click', async () => {
       try { await savePricing(); } catch (error) {
         setSync('Save failed', 'error');
@@ -956,7 +959,19 @@
     byId('refreshBtn').addEventListener('click', loadRecent);
     byId('printBtn').addEventListener('click', () => window.print());
     byId('galleryBtn').addEventListener('click', openGallery);
+    byId('mobileGalleryBtn').addEventListener('click', openGallery);
+    byId('galleryCameraBtn').addEventListener('click', () => byId('galleryCameraInput').click());
     byId('galleryUploadBtn').addEventListener('click', () => byId('galleryInput').click());
+    byId('galleryCameraInput').addEventListener('change', async (event) => {
+      try {
+        await uploadGalleryFiles(event.target.files);
+      } catch (error) {
+        setSync('Upload failed', 'error');
+        toast(error.message || 'Could not upload photo.', 'error');
+      } finally {
+        event.target.value = '';
+      }
+    });
     byId('galleryInput').addEventListener('change', async (event) => {
       try {
         await uploadGalleryFiles(event.target.files);
@@ -970,11 +985,15 @@
     byId('galleryCloseBtn').addEventListener('click', closeGallery);
     document.querySelectorAll('[data-gallery-close]').forEach((el) => el.addEventListener('click', closeGallery));
 
-    byId('clientViewBtn').addEventListener('click', () => {
+    function toggleClientView() {
       const active = document.body.classList.toggle('client-mode');
       byId('clientViewBtn').textContent = active ? 'Internal view' : 'Client view';
+      byId('mobileClientLabel').textContent = active ? 'Internal' : 'Client';
       calculate();
-    });
+    }
+
+    byId('clientViewBtn').addEventListener('click', toggleClientView);
+    byId('mobileClientBtn').addEventListener('click', toggleClientView);
 
     document.querySelectorAll('#app input, #app select, #app textarea').forEach((el) => {
       el.addEventListener('input', calculate);
@@ -984,6 +1003,7 @@
 
   async function init() {
     bindEvents();
+    document.querySelectorAll('input[type="number"]').forEach((el) => el.setAttribute('inputmode', 'decimal'));
     syncPricingInputs();
     calculate();
     const restored = await restoreSession();
