@@ -162,8 +162,13 @@
     });
 
     if (response.status === 401 && !retried) {
-      await refreshSession();
-      return rest(path, options, true);
+      try {
+        await refreshSession();
+        return rest(path, options, true);
+      } catch {
+        clearSession();
+        throw new Error('Your session expired. Please sign in again.');
+      }
     }
 
     const text = await response.text();
@@ -904,40 +909,52 @@
         if (Array.isArray(refreshed) && refreshed[0]) savedRecord = refreshed[0];
       }
 
+      let historySyncError = null;
       if (savedRecord) {
-        await rest('bathroom_calculation_versions', {
-          method: 'POST',
-          body: {
-            project_id: state.projectId,
-            estimate_id: savedRecord.id,
-            user_id: userId,
-            snapshot: {
-              client_name: savedRecord.client_name,
-              client_phone: savedRecord.client_phone,
-              project_address: savedRecord.project_address,
-              status: savedRecord.status,
-              room: savedRecord.room,
-              scope: savedRecord.scope,
-              selections: savedRecord.selections,
-              pricing_snapshot: savedRecord.pricing_snapshot,
-              calculations: savedRecord.calculations,
-              notes: savedRecord.notes
+        try {
+          await rest('bathroom_calculation_versions', {
+            method: 'POST',
+            body: {
+              project_id: state.projectId,
+              estimate_id: savedRecord.id,
+              user_id: userId,
+              snapshot: {
+                client_name: savedRecord.client_name,
+                client_phone: savedRecord.client_phone,
+                project_address: savedRecord.project_address,
+                status: savedRecord.status,
+                room: savedRecord.room,
+                scope: savedRecord.scope,
+                selections: savedRecord.selections,
+                pricing_snapshot: savedRecord.pricing_snapshot,
+                calculations: savedRecord.calculations,
+                notes: savedRecord.notes
+              },
+              total_ex_vat: savedRecord.total_ex_vat,
+              vat_rate: savedRecord.vat_rate,
+              total_inc_vat: savedRecord.total_inc_vat,
+              saved_at: nowIso()
             },
-            total_ex_vat: savedRecord.total_ex_vat,
-            vat_rate: savedRecord.vat_rate,
-            total_inc_vat: savedRecord.total_inc_vat,
-            saved_at: nowIso()
-          },
-          prefer: 'return=minimal'
-        });
+            prefer: 'return=minimal'
+          });
+        } catch (error) {
+          historySyncError = error;
+        }
       }
 
-      await loadRecent();
-      setSync('Synced');
-      toast('Project and calculation saved to cloud.');
+      try { await loadRecent(); } catch {}
+
+      if (historySyncError) {
+        setSync('Estimate saved', 'busy');
+        toast('Estimate saved. History sync pending: ' + historySyncError.message, 'error');
+      } else {
+        setSync('Synced');
+        toast('Estimate and project history saved.');
+      }
     } catch (error) {
+      const message = error && error.message ? error.message : 'Could not save estimate.';
       setSync('Save failed', 'error');
-      toast(error.message || 'Could not save estimate.', 'error');
+      toast('Save failed: ' + message, 'error');
     } finally {
       state.busy = false;
     }
