@@ -254,6 +254,21 @@
         </section>
       </aside>
     </main>
+
+    <nav class="mobile-dock" aria-label="Mobile calculator actions">
+      <button id="mobileNewBtn" class="mobile-dock-btn" type="button">
+        <span class="dock-icon">＋</span><span>New</span>
+      </button>
+      <button id="mobileClientBtn" class="mobile-dock-btn" type="button">
+        <span class="dock-icon">◫</span><span id="mobileClientLabel">Client</span>
+      </button>
+      <button id="mobileGalleryBtn" class="mobile-dock-btn internal-only" type="button">
+        <span class="dock-icon">▧</span><span>Gallery</span>
+      </button>
+      <button id="mobileSaveBtn" class="mobile-dock-btn mobile-save" type="button">
+        <span id="mobileTotal">€0</span><span>Save</span>
+      </button>
+    </nav>
   </div>
 
   <div id="galleryModal" class="modal" hidden>
@@ -264,8 +279,10 @@
         <button id="galleryCloseBtn" class="btn btn-ghost compact" type="button">Close</button>
       </div>
       <div class="gallery-toolbar">
-        <button id="galleryUploadBtn" class="btn btn-primary" type="button">Add photos</button>
+        <button id="galleryCameraBtn" class="btn btn-primary" type="button">Take photo</button>
+        <button id="galleryUploadBtn" class="btn btn-secondary" type="button">Choose photos</button>
         <span class="fine-print">Photos are private and linked to this saved estimate.</span>
+        <input id="galleryCameraInput" type="file" accept="image/*" capture="environment" hidden />
         <input id="galleryInput" type="file" accept="image/*" multiple hidden />
       </div>
       <div id="galleryGrid" class="gallery-grid"><p class="muted">No photos yet.</p></div>
