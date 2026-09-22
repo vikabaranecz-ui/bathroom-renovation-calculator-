@@ -607,7 +607,6 @@
 
     byId('totalIncVat').textContent = euro(totalIncVat);
     byId('totalExVat').textContent = euro(totalExVat) + ' excl. VAT';
-    byId('mobileTotal').textContent = euro(totalIncVat);
     byId('summarySize').textContent = floor.toFixed(1) + ' m²';
     byId('summaryHours').textContent = Math.round(totalHours) + ' h';
     byId('summaryProducts').textContent = euro(productCost);

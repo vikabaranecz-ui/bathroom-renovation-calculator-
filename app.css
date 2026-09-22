@@ -420,3 +420,50 @@ input:focus,select:focus,textarea:focus{
   .client-mode #mobileGalleryBtn{display:flex!important}
   .client-mode #mobileSaveBtn{display:flex!important}
 }
+
+/* Mobile inspection flow: inputs first, total and scope breakdown at the end */
+@media(max-width:720px){
+  .workspace,
+  .client-mode .workspace{
+    display:flex!important;
+    flex-direction:column!important;
+  }
+
+  .editor-column{
+    order:0!important;
+    width:100%;
+  }
+
+  .summary-column{
+    order:1!important;
+    width:100%;
+    position:static!important;
+    top:auto!important;
+  }
+
+  .summary-card,
+  .client-mode .summary-card{
+    position:static!important;
+    top:auto!important;
+  }
+
+  .summary-column::before{
+    content:"Estimate summary";
+    display:block;
+    margin:8px 4px 0;
+    color:#64748b;
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+  }
+
+  .mobile-dock-btn.mobile-save span:first-child{
+    font-size:18px!important;
+  }
+
+  /* In Client presentation there is no editor, so show the presentation normally. */
+  .client-mode .summary-column{
+    order:0!important;
+  }
+}
