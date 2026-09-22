@@ -1034,6 +1034,28 @@
   }
 
 
+
+  async function openCurrentProject() {
+    try {
+      if (!state.projectId || !state.estimateId) {
+        toast('Saving project first…');
+        await saveEstimate();
+      }
+      if (!state.projectId) return;
+
+      const label =
+        byId('clientName').value.trim() ||
+        byId('projectAddress').value.trim() ||
+        'Bathroom project';
+
+      const count = await refreshGalleryCount();
+      byId('projectPhotoCount').textContent = String(count);
+      await openVersions(state.projectId, label);
+    } catch (error) {
+      toast(error.message || 'Could not open project.', 'error');
+    }
+  }
+
   async function openVersions(projectId, label) {
     byId('versionsProjectLabel').textContent = label || 'Project';
     byId('versionsModal').hidden = false;
@@ -1171,7 +1193,7 @@
     byId('historySearch').addEventListener('input', filterHistory);
     byId('printBtn').addEventListener('click', () => window.print());
     byId('galleryBtn').addEventListener('click', openGallery);
-    byId('mobileGalleryBtn').addEventListener('click', openGallery);
+    byId('mobileProjectBtn').addEventListener('click', openCurrentProject);
     byId('galleryCameraBtn').addEventListener('click', () => byId('galleryCameraInput').click());
     byId('galleryUploadBtn').addEventListener('click', () => byId('galleryInput').click());
     byId('galleryCameraInput').addEventListener('change', async (event) => {
@@ -1196,6 +1218,10 @@
     });
     byId('galleryCloseBtn').addEventListener('click', closeGallery);
     byId('versionsCloseBtn').addEventListener('click', closeVersions);
+    byId('projectPhotosBtn').addEventListener('click', async () => {
+      closeVersions();
+      await openGallery();
+    });
     document.querySelectorAll('[data-versions-close]').forEach((el) => el.addEventListener('click', closeVersions));
     document.querySelectorAll('[data-gallery-close]').forEach((el) => el.addEventListener('click', closeGallery));
 
