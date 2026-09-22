@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <meta name="theme-color" content="#0a0a0a" />
+  <title>Bathroom Renovation Calculator</title>
+  <link rel="stylesheet" href="./app.css" />
+</head>
+<body>
+  <div id="authGate" class="auth-shell">
+    <section class="auth-card">
+      <div class="brand-lockup">
+        <span class="brand-mark">BC</span>
+        <div><strong>BATHROOM CALCULATOR</strong><small>Renovation Estimator</small></div>
+      </div>
+      <div>
+        <p class="eyebrow">Internal pricing tool</p>
+        <h1>Price a bathroom during the inspection.</h1>
+        <p class="muted">Sign in to load your rates and save estimates. Calculations are stored per user in Supabase.</p>
+      </div>
+      <form id="authForm" class="stack">
+        <label>Email<input id="authEmail" type="email" autocomplete="email" required placeholder="you@company.be" /></label>
+        <label>Password<input id="authPassword" type="password" autocomplete="current-password" minlength="6" required placeholder="••••••••" /></label>
+        <button class="btn btn-primary" type="submit">Sign in</button>
+        <button class="btn btn-secondary" id="signUpBtn" type="button">Create account</button>
+        <p id="authMessage" class="message" aria-live="polite"></p>
+      </form>
+    </section>
+  </div>
+
+  <div id="app" class="app-shell" hidden>
+    <header class="topbar">
+      <div class="brand-lockup">
+        <span class="brand-mark">BC</span>
+        <div><strong>BATHROOM CALCULATOR</strong><small>Renovation Estimator</small></div>
+      </div>
+      <div class="top-actions">
+        <span id="syncStatus" class="sync-status">Synced</span>
+        <button id="clientViewBtn" class="btn btn-ghost" type="button">Client view</button>
+        <button id="newBtn" class="btn btn-secondary" type="button">New</button>
+        <button id="saveBtn" class="btn btn-primary" type="button">Save estimate</button>
+        <button id="signOutBtn" class="btn btn-ghost" type="button">Sign out</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <div class="editor-column">
+        <section class="panel">
+          <div class="section-head">
+            <div><span class="step">01</span><h2>Client & project</h2></div>
+            <span id="estimateState" class="pill">New estimate</span>
+          </div>
+          <div class="form-grid three">
+            <label>Client name<input id="clientName" type="text" placeholder="Client name" /></label>
+            <label>Phone<input id="clientPhone" type="tel" placeholder="+32 ..." /></label>
+            <label>Project address<input id="projectAddress" type="text" placeholder="Street, city" /></label>
+          </div>
+          <label class="wide-label">Inspection notes<textarea id="notes" rows="2" placeholder="Access, existing problems, client wishes, hidden-risk notes…"></textarea></label>
+        </section>
+
+        <section class="panel">
+          <div class="section-head"><div><span class="step">02</span><h2>Room measurements</h2></div></div>
+          <div class="form-grid three">
+            <label>Length <span>m</span><input id="length" type="number" min="0" step="0.01" value="3" /></label>
+            <label>Width <span>m</span><input id="width" type="number" min="0" step="0.01" value="2.5" /></label>
+            <label>Height <span>m</span><input id="height" type="number" min="0" step="0.01" value="2.5" /></label>
+            <label>Wall tiling <span>%</span><input id="wallTilePct" type="number" min="0" max="100" step="5" value="75" /></label>
+            <label>Tile waste <span>%</span><input id="tileWastePct" type="number" min="0" max="30" step="1" value="10" /></label>
+            <label>Tile purchase <span>€/m²</span><input id="tilePrice" type="number" min="0" step="1" value="45" /></label>
+          </div>
+          <div class="metrics-row">
+            <div><small>Floor</small><strong id="floorArea">0.0 m²</strong></div>
+            <div><small>Tiled walls</small><strong id="wallArea">0.0 m²</strong></div>
+            <div><small>Tiles to buy</small><strong id="tileBuyArea">0.0 m²</strong></div>
+            <div><small>Waterproof area</small><strong id="waterproofArea">0.0 m²</strong></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="section-head"><div><span class="step">03</span><h2>Demolition & preparation</h2></div></div>
+          <div class="form-grid two">
+            <label>Demolition
+              <select id="demolition">
+                <option value="none">None</option>
+                <option value="light">Light demolition</option>
+                <option value="full" selected>Full bathroom strip-out</option>
+                <option value="heavy">Heavy / difficult access</option>
+              </select>
+            </label>
+            <label>Walls / substrate
+              <select id="substrate">
+                <option value="good">Good / ready</option>
+                <option value="local" selected>Local repairs</option>
+                <option value="major">Major levelling / repairs</option>
+                <option value="rebuild">Rebuild walls / floor</option>
+              </select>
+            </label>
+          </div>
+          <div class="toggle-grid">
+            <label class="toggle"><input id="wasteRemoval" type="checkbox" checked /><span>Debris removal / disposal</span></label>
+            <label class="toggle"><input id="waterproofing" type="checkbox" checked /><span>New waterproofing system</span></label>
+            <label class="toggle"><input id="tileFloor" type="checkbox" checked /><span>Tile floor</span></label>
+            <label class="toggle"><input id="tileWalls" type="checkbox" checked /><span>Tile walls</span></label>
+            <label class="toggle"><input id="ceilingPaint" type="checkbox" checked /><span>Ceiling repair / painting</span></label>
+            <label class="toggle"><input id="floorHeating" type="checkbox" /><span>Electric floor heating</span></label>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="section-head"><div><span class="step">04</span><h2>Plumbing, electricity & fixtures</h2></div></div>
+          <div class="form-grid three">
+            <label>Water points moved<input id="waterMoves" type="number" min="0" max="20" step="1" value="3" /></label>
+            <label>Drains moved<input id="drainMoves" type="number" min="0" max="10" step="1" value="1" /></label>
+            <label>Electrical points<input id="electricPoints" type="number" min="0" max="30" step="1" value="5" /></label>
+          </div>
+          <div class="toggle-grid">
+            <label class="toggle"><input id="shower" type="checkbox" checked /><span>Walk-in shower</span></label>
+            <label class="toggle"><input id="bath" type="checkbox" /><span>Bathtub</span></label>
+            <label class="toggle"><input id="toilet" type="checkbox" checked /><span>Toilet</span></label>
+            <label class="toggle"><input id="vanity" type="checkbox" checked /><span>Vanity + basin</span></label>
+            <label class="toggle"><input id="radiator" type="checkbox" checked /><span>Towel radiator</span></label>
+            <label class="toggle"><input id="ventilation" type="checkbox" checked /><span>Mechanical ventilation</span></label>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="section-head"><div><span class="step">05</span><h2>Client-selected products</h2></div><span class="pill neutral">Allowances</span></div>
+          <p class="section-copy">Keep product quality separate from labour. Enter the amount you expect to spend on the selected sanitary products.</p>
+          <div class="form-grid two">
+            <label>Shower / glass / drain <span>€</span><input id="allowShower" type="number" min="0" step="10" value="1200" /></label>
+            <label>Bathtub <span>€</span><input id="allowBath" type="number" min="0" step="10" value="0" /></label>
+            <label>Toilet <span>€</span><input id="allowToilet" type="number" min="0" step="10" value="650" /></label>
+            <label>Vanity / basin / tap <span>€</span><input id="allowVanity" type="number" min="0" step="10" value="1200" /></label>
+            <label>Radiator / ventilation <span>€</span><input id="allowMechanical" type="number" min="0" step="10" value="500" /></label>
+            <label>Other products <span>€</span><input id="allowOther" type="number" min="0" step="10" value="300" /></label>
+          </div>
+        </section>
+
+        <section class="panel internal-only">
+          <div class="section-head"><div><span class="step">06</span><h2>Pricing model</h2></div><button id="saveRatesBtn" class="btn btn-secondary compact" type="button">Save rates</button></div>
+          <div class="form-grid four">
+            <label>Loaded labour <span>€/worker-h</span><input data-price="laborRate" type="number" min="0" step="1" /></label>
+            <label>Overhead <span>%</span><input data-price="overheadPct" type="number" min="0" max="100" step="1" /></label>
+            <label>Risk reserve <span>%</span><input data-price="riskPct" type="number" min="0" max="100" step="1" /></label>
+            <label>Target margin <span>%</span><input data-price="marginPct" type="number" min="1" max="70" step="1" /></label>
+            <label>VAT
+              <select data-price="vatRate">
+                <option value="0">0%</option>
+                <option value="6">6%</option>
+                <option value="21">21%</option>
+              </select>
+            </label>
+            <label>Round to
+              <select data-price="roundTo">
+                <option value="1">Exact €</option>
+                <option value="50">€50</option>
+                <option value="100">€100</option>
+                <option value="250">€250</option>
+              </select>
+            </label>
+            <label class="toggle inline-toggle"><input data-price-check="marginOnProducts" type="checkbox" /><span>Margin on supplied products</span></label>
+          </div>
+
+          <details class="rates-details">
+            <summary>Production rates & unit costs</summary>
+            <div class="rates-grid">
+              <label>Demo light <span>h</span><input data-price="demoLightHours" type="number" min="0" step="1" /></label>
+              <label>Demo full <span>h</span><input data-price="demoFullHours" type="number" min="0" step="1" /></label>
+              <label>Demo heavy <span>h</span><input data-price="demoHeavyHours" type="number" min="0" step="1" /></label>
+              <label>Demo disposal light <span>€</span><input data-price="demoLightMaterials" type="number" min="0" step="10" /></label>
+              <label>Demo disposal full <span>€</span><input data-price="demoFullMaterials" type="number" min="0" step="10" /></label>
+              <label>Demo disposal heavy <span>€</span><input data-price="demoHeavyMaterials" type="number" min="0" step="10" /></label>
+              <label>Tiling labour <span>h/m²</span><input data-price="tileHoursPerM2" type="number" min="0" step="0.05" /></label>
+              <label>Tiling install materials <span>€/m²</span><input data-price="tileMaterialsPerM2" type="number" min="0" step="1" /></label>
+              <label>Waterproof labour <span>h/m²</span><input data-price="waterproofHoursPerM2" type="number" min="0" step="0.05" /></label>
+              <label>Waterproof material <span>€/m²</span><input data-price="waterproofMaterialsPerM2" type="number" min="0" step="1" /></label>
+              <label>Water move <span>h/point</span><input data-price="waterMoveHours" type="number" min="0" step="0.5" /></label>
+              <label>Water move material <span>€/point</span><input data-price="waterMoveMaterials" type="number" min="0" step="10" /></label>
+              <label>Drain move <span>h/point</span><input data-price="drainMoveHours" type="number" min="0" step="0.5" /></label>
+              <label>Drain move material <span>€/point</span><input data-price="drainMoveMaterials" type="number" min="0" step="10" /></label>
+              <label>Electrical <span>h/point</span><input data-price="electricHours" type="number" min="0" step="0.25" /></label>
+              <label>Electrical material <span>€/point</span><input data-price="electricMaterials" type="number" min="0" step="5" /></label>
+            </div>
+          </details>
+          <p class="fine-print">Use your real loaded labour cost, not only the worker's wage. A 35% margin means selling price = cost ÷ 0.65, not cost + 35%.</p>
+        </section>
+
+        <section class="panel">
+          <div class="section-head"><div><span class="step">07</span><h2>Inspection confidence</h2></div></div>
+          <div class="toggle-grid">
+            <label class="toggle"><input class="confidence" type="checkbox" /><span>Measurements confirmed</span></label>
+            <label class="toggle"><input class="confidence" type="checkbox" /><span>Water / drain route inspected</span></label>
+            <label class="toggle"><input class="confidence" type="checkbox" /><span>Substrate condition known</span></label>
+            <label class="toggle"><input class="confidence" type="checkbox" /><span>Electrical scope confirmed</span></label>
+            <label class="toggle"><input class="confidence" type="checkbox" /><span>Product allowances agreed</span></label>
+            <label class="toggle"><input class="confidence" type="checkbox" /><span>VAT treatment verified</span></label>
+          </div>
+        </section>
+      </div>
+
+      <aside class="summary-column">
+        <section class="summary-card">
+          <div class="summary-top">
+            <div><small>Estimated client price</small><div id="totalIncVat" class="hero-price">€0</div><span id="totalExVat">€0 excl. VAT</span></div>
+            <span id="confidenceBadge" class="confidence-badge">Preliminary</span>
+          </div>
+          <div class="client-summary">
+            <div><span>Bathroom</span><strong id="summarySize">0.0 m²</strong></div>
+            <div><span>Estimated worker-hours</span><strong id="summaryHours">0 h</strong></div>
+            <div><span>Products allowance</span><strong id="summaryProducts">€0</strong></div>
+          </div>
+          <div class="internal-summary internal-only">
+            <div><span>Labour cost</span><strong id="laborCost">€0</strong></div>
+            <div><span>Construction materials</span><strong id="constructionMaterials">€0</strong></div>
+            <div><span>Product cost</span><strong id="productCost">€0</strong></div>
+            <div><span>Overhead allocation</span><strong id="overheadCost">€0</strong></div>
+            <div><span>Risk reserve</span><strong id="riskCost">€0</strong></div>
+            <div class="total-line"><span>Internal cost basis</span><strong id="costBasis">€0</strong></div>
+            <div><span>Gross contribution</span><strong id="grossContribution">€0</strong></div>
+            <div><span>Actual margin</span><strong id="actualMargin">0%</strong></div>
+          </div>
+          <div class="summary-actions">
+            <button id="printBtn" class="btn btn-secondary" type="button">Print summary</button>
+            <button id="saveBtnMobile" class="btn btn-primary" type="button">Save</button>
+          </div>
+          <p class="fine-print">Inspection estimate. Hidden defects, final product choices and unconfirmed technical conditions can change the formal quotation.</p>
+        </section>
+
+        <section class="panel breakdown-panel">
+          <div class="section-head"><div><h2>Scope breakdown</h2></div></div>
+          <div id="breakdown" class="breakdown"></div>
+        </section>
+
+        <section class="panel internal-only">
+          <div class="section-head"><div><h2>Saved estimates</h2></div><button id="refreshBtn" class="btn btn-ghost compact" type="button">Refresh</button></div>
+          <div id="recentList" class="recent-list"><p class="muted">No estimates loaded.</p></div>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="./app.js" defer></script>
+</body>
+</html>
