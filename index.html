@@ -66,15 +66,29 @@
             <label>Length <span>m</span><input id="length" type="number" min="0" step="0.01" value="3" /></label>
             <label>Width <span>m</span><input id="width" type="number" min="0" step="0.01" value="2.5" /></label>
             <label>Height <span>m</span><input id="height" type="number" min="0" step="0.01" value="2.5" /></label>
-            <label>Wall tiling <span>%</span><input id="wallTilePct" type="number" min="0" max="100" step="5" value="75" /></label>
+            <label>Wall finish coverage <span>%</span><input id="wallTilePct" type="number" min="0" max="100" step="5" value="75" /></label>
+            <label>Wall finish
+              <select id="wallFinish">
+                <option value="tile" selected>Tiles</option>
+                <option value="mortex">Mortex</option>
+                <option value="none">No new finish</option>
+              </select>
+            </label>
+            <label>Floor finish
+              <select id="floorFinish">
+                <option value="tile" selected>Tiles</option>
+                <option value="mortex">Mortex</option>
+                <option value="none">No new finish</option>
+              </select>
+            </label>
             <label>Tile waste <span>%</span><input id="tileWastePct" type="number" min="0" max="30" step="1" value="10" /></label>
             <label>Tile purchase <span>€/m²</span><input id="tilePrice" type="number" min="0" step="1" value="45" /></label>
           </div>
           <div class="metrics-row">
             <div><small>Floor</small><strong id="floorArea">0.0 m²</strong></div>
-            <div><small>Tiled walls</small><strong id="wallArea">0.0 m²</strong></div>
+            <div><small>Wall finish</small><strong id="wallArea">0.0 m²</strong></div>
             <div><small>Tiles to buy</small><strong id="tileBuyArea">0.0 m²</strong></div>
-            <div><small>Waterproof area</small><strong id="waterproofArea">0.0 m²</strong></div>
+            <div><small>Mortex area</small><strong id="mortexArea">0.0 m²</strong></div>
           </div>
         </section>
 
@@ -101,8 +115,6 @@
           <div class="toggle-grid">
             <label class="toggle"><input id="wasteRemoval" type="checkbox" checked /><span>Debris removal / disposal</span></label>
             <label class="toggle"><input id="waterproofing" type="checkbox" checked /><span>New waterproofing system</span></label>
-            <label class="toggle"><input id="tileFloor" type="checkbox" checked /><span>Tile floor</span></label>
-            <label class="toggle"><input id="tileWalls" type="checkbox" checked /><span>Tile walls</span></label>
             <label class="toggle"><input id="ceilingPaint" type="checkbox" checked /><span>Ceiling repair / painting</span></label>
             <label class="toggle"><input id="floorHeating" type="checkbox" /><span>Electric floor heating</span></label>
           </div>
@@ -174,6 +186,8 @@
               <label>Demo disposal heavy <span>€</span><input data-price="demoHeavyMaterials" type="number" min="0" step="10" /></label>
               <label>Tiling labour <span>h/m²</span><input data-price="tileHoursPerM2" type="number" min="0" step="0.05" /></label>
               <label>Tiling install materials <span>€/m²</span><input data-price="tileMaterialsPerM2" type="number" min="0" step="1" /></label>
+              <label>Mortex labour <span>h/m²</span><input data-price="mortexHoursPerM2" type="number" min="0" step="0.05" /></label>
+              <label>Mortex materials <span>€/m²</span><input data-price="mortexMaterialsPerM2" type="number" min="0" step="1" /></label>
               <label>Waterproof labour <span>h/m²</span><input data-price="waterproofHoursPerM2" type="number" min="0" step="0.05" /></label>
               <label>Waterproof material <span>€/m²</span><input data-price="waterproofMaterialsPerM2" type="number" min="0" step="1" /></label>
               <label>Water move <span>h/point</span><input data-price="waterMoveHours" type="number" min="0" step="0.5" /></label>
@@ -223,6 +237,7 @@
           </div>
           <div class="summary-actions">
             <button id="printBtn" class="btn btn-secondary" type="button">Print summary</button>
+            <button id="galleryBtn" class="btn btn-secondary internal-only" type="button">Gallery <span id="galleryCount">0</span></button>
             <button id="saveBtnMobile" class="btn btn-primary" type="button">Save</button>
           </div>
           <p class="fine-print">Inspection estimate. Hidden defects, final product choices and unconfirmed technical conditions can change the formal quotation.</p>
@@ -239,6 +254,22 @@
         </section>
       </aside>
     </main>
+  </div>
+
+  <div id="galleryModal" class="modal" hidden>
+    <div class="modal-backdrop" data-gallery-close></div>
+    <section class="gallery-dialog" role="dialog" aria-modal="true" aria-labelledby="galleryTitle">
+      <div class="section-head gallery-head">
+        <div><h2 id="galleryTitle">Inspection gallery</h2><span id="galleryProjectLabel" class="muted"></span></div>
+        <button id="galleryCloseBtn" class="btn btn-ghost compact" type="button">Close</button>
+      </div>
+      <div class="gallery-toolbar">
+        <button id="galleryUploadBtn" class="btn btn-primary" type="button">Add photos</button>
+        <span class="fine-print">Photos are private and linked to this saved estimate.</span>
+        <input id="galleryInput" type="file" accept="image/*" multiple hidden />
+      </div>
+      <div id="galleryGrid" class="gallery-grid"><p class="muted">No photos yet.</p></div>
+    </section>
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
