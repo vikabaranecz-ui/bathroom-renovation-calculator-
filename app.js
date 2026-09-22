@@ -205,7 +205,7 @@
   async function downloadPrivatePhoto(storagePath) {
     const token = await getValidToken();
     const response = await fetch(
-      SUPABASE_URL + '/storage/v1/object/authenticated/bathroom-estimate-photos/' + encodeStoragePath(storagePath),
+      SUPABASE_URL + '/storage/v1/object/bathroom-estimate-photos/' + encodeStoragePath(storagePath),
       { headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + token } }
     );
     if (!response.ok) throw new Error('Could not load photo');
@@ -260,10 +260,15 @@
           const token = await getValidToken();
           const storagePath = card.getAttribute('data-storage-path');
           const response = await fetch(
-            SUPABASE_URL + '/storage/v1/object/bathroom-estimate-photos/' + encodeStoragePath(storagePath),
+            SUPABASE_URL + '/storage/v1/object/bathroom-estimate-photos',
             {
               method: 'DELETE',
-              headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + token }
+              headers: {
+                apikey: SUPABASE_KEY,
+                Authorization: 'Bearer ' + token,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ prefixes: [storagePath] })
             }
           );
           if (!response.ok) throw new Error('Could not delete photo file');
