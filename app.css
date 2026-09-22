@@ -560,3 +560,48 @@ input:focus,select:focus,textarea:focus{
 @media(max-width:720px){
   .project-hub-actions .btn{width:100%}
 }
+
+.projects-dialog{
+  position:relative;z-index:1;width:min(900px,100%);max-height:min(88vh,900px);
+  overflow:auto;background:#fff;border:1px solid var(--line);border-radius:24px;
+  padding:22px;box-shadow:var(--shadow-lg)
+}
+.projects-head>div{display:block}
+.projects-head .muted{display:block;margin-top:4px;font-size:11px}
+.projects-toolbar{margin-bottom:16px}
+.projects-toolbar label{max-width:420px}
+.projects-list{display:grid;gap:10px}
+.project-card{
+  display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:center;
+  padding:16px;border:1px solid var(--line);border-radius:18px;background:#fff
+}
+.project-card:hover{border-color:#cbd5e1;box-shadow:var(--shadow-sm)}
+.project-card h3{margin:0;font-size:14px;letter-spacing:-.015em;color:#0f172a}
+.project-card .project-address{margin-top:4px;font-size:12px;color:#64748b}
+.project-card .project-meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
+.project-card .project-meta span{
+  display:inline-flex;align-items:center;min-height:24px;padding:4px 8px;
+  border-radius:999px;background:#f8fafc;border:1px solid var(--line);
+  font-size:10px;font-weight:600;color:#64748b
+}
+.project-card .project-actions{display:flex;gap:7px;align-items:center}
+.project-card .project-total{font-size:14px;font-weight:750;color:#0f172a;white-space:nowrap}
+.project-empty{
+  min-height:220px;border:1px dashed #cbd5e1;border-radius:18px;background:#f8fafc;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:24px;color:#64748b;gap:6px
+}
+.project-empty strong{color:#0f172a;font-size:14px}
+.project-empty span{font-size:12px}
+@media(max-width:720px){
+  .projects-dialog{
+    position:fixed;inset:0;width:100%;height:100%;max-height:none;border:0;border-radius:0;
+    padding:14px 12px calc(18px + env(safe-area-inset-bottom))
+  }
+  .projects-head{position:sticky;top:-14px;z-index:2;background:#fff;padding:14px 0 10px}
+  .projects-toolbar label{max-width:none}
+  .projects-toolbar input{font-size:16px}
+  .project-card{grid-template-columns:1fr;padding:14px}
+  .project-card .project-actions{display:grid;grid-template-columns:1fr 1fr}
+  .project-card .project-total{grid-column:1/-1}
+}

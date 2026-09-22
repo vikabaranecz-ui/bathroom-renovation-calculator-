@@ -42,7 +42,8 @@
     lastResult: null,
     busy: false,
     galleryObjectUrls: [],
-    historyRows: []
+    historyRows: [],
+    projectsRows: []
   };
 
   const byId = (id) => document.getElementById(id);
@@ -1016,6 +1017,143 @@
 
 
 
+
+  function closeProjectsSpace() {
+    byId('projectsModal').hidden = true;
+  }
+
+  function renderProjects(rows) {
+    const list = byId('projectsList');
+    const items = Array.isArray(rows) ? rows : [];
+    byId('projectsCount').textContent = items.length + (items.length === 1 ? ' project' : ' projects');
+
+    if (!items.length) {
+      list.innerHTML = '<div class="project-empty"><strong>No saved projects yet</strong><span>Save an estimate and it will appear here.</span></div>';
+      return;
+    }
+
+    list.innerHTML = items.map((row) => {
+      const title = row.client_name || row.title || row.project_address || 'Bathroom project';
+      const address = row.project_address || 'No address';
+      const updated = row.updated_at ? new Date(row.updated_at) : null;
+      const updatedText = updated ? updated.toLocaleDateString('nl-BE') + ' ' + updated.toLocaleTimeString('nl-BE', { hour:'2-digit', minute:'2-digit' }) : '';
+      const latest = row.latest_estimate || null;
+      const total = latest ? euro(Number(latest.total_inc_vat || 0)) : 'No estimate';
+      const versions = Number(row.version_count || 0);
+      return '<article class="project-card" data-project-card="' + escapeHtml(row.id) + '">' +
+        '<div>' +
+          '<h3>' + escapeHtml(title) + '</h3>' +
+          '<div class="project-address">' + escapeHtml(address) + '</div>' +
+          '<div class="project-meta">' +
+            (updatedText ? '<span>Updated ' + escapeHtml(updatedText) + '</span>' : '') +
+            '<span>' + versions + (versions === 1 ? ' calculation' : ' calculations') + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="project-actions">' +
+          '<div class="project-total">' + escapeHtml(total) + '</div>' +
+          '<button class="btn btn-primary compact" type="button" data-project-open="' + escapeHtml(row.id) + '">Open</button>' +
+          '<button class="btn btn-secondary compact" type="button" data-project-details="' + escapeHtml(row.id) + '">Details</button>' +
+        '</div>' +
+      '</article>';
+    }).join('');
+
+    list.querySelectorAll('[data-project-open]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        await openSavedProject(button.getAttribute('data-project-open'), false);
+      });
+    });
+
+    list.querySelectorAll('[data-project-details]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        await openSavedProject(button.getAttribute('data-project-details'), true);
+      });
+    });
+  }
+
+  function filterProjects() {
+    const query = byId('projectsSearch').value.trim().toLowerCase();
+    if (!query) {
+      renderProjects(state.projectsRows);
+      return;
+    }
+    renderProjects(state.projectsRows.filter((row) => {
+      return [row.title,row.client_name,row.client_phone,row.project_address,row.status]
+        .filter(Boolean).join(' ').toLowerCase().includes(query);
+    }));
+  }
+
+  async function loadProjectsSpace() {
+    const list = byId('projectsList');
+    list.innerHTML = '<div class="gallery-loading">Loading saved projects…</div>';
+
+    const [projects, estimates, versions] = await Promise.all([
+      rest('bathroom_projects?select=id,title,client_name,client_phone,project_address,status,created_at,updated_at&order=updated_at.desc'),
+      rest('bathroom_estimates?select=id,project_id,total_inc_vat,updated_at&order=updated_at.desc'),
+      rest('bathroom_calculation_versions?select=project_id,id')
+    ]);
+
+    const latestByProject = {};
+    (Array.isArray(estimates) ? estimates : []).forEach((row) => {
+      if (row.project_id && !latestByProject[row.project_id]) latestByProject[row.project_id] = row;
+    });
+    const versionCounts = {};
+    (Array.isArray(versions) ? versions : []).forEach((row) => {
+      if (row.project_id) versionCounts[row.project_id] = (versionCounts[row.project_id] || 0) + 1;
+    });
+
+    state.projectsRows = (Array.isArray(projects) ? projects : []).map((row) => Object.assign({}, row, {
+      latest_estimate: latestByProject[row.id] || null,
+      version_count: versionCounts[row.id] || 0
+    }));
+    renderProjects(state.projectsRows);
+  }
+
+  async function openProjectsSpace() {
+    try {
+      byId('projectsModal').hidden = false;
+      byId('projectsSearch').value = '';
+      await loadProjectsSpace();
+    } catch (error) {
+      byId('projectsList').innerHTML = '<div class="project-empty"><strong>Could not load projects</strong><span>' + escapeHtml(error.message || 'Please try again.') + '</span></div>';
+    }
+  }
+
+  async function openSavedProject(projectId, showDetails) {
+    try {
+      const rows = await rest(
+        'bathroom_estimates?project_id=eq.' + encodeURIComponent(projectId) +
+        '&select=*&order=updated_at.desc&limit=1'
+      );
+      const estimate = Array.isArray(rows) && rows[0] ? rows[0] : null;
+      const project = state.projectsRows.find((row) => row.id === projectId);
+
+      if (estimate) {
+        fillEstimate(estimate);
+      } else {
+        state.projectId = projectId;
+      }
+
+      closeProjectsSpace();
+
+      if (showDetails) {
+        if (estimate) {
+          const count = await refreshGalleryCount();
+          byId('projectPhotoCount').textContent = String(count);
+        } else {
+          byId('projectPhotoCount').textContent = '0';
+        }
+        const label = project ?
+          (project.client_name || project.title || project.project_address || 'Bathroom project') :
+          'Bathroom project';
+        await openVersions(projectId, label);
+      } else {
+        toast('Project opened.');
+      }
+    } catch (error) {
+      toast(error.message || 'Could not open project.', 'error');
+    }
+  }
+
   async function openCurrentProject() {
     try {
       if (!state.projectId || !state.estimateId) {
@@ -1174,7 +1312,8 @@
     byId('historySearch').addEventListener('input', filterHistory);
     byId('printBtn').addEventListener('click', () => window.print());
     byId('galleryBtn').addEventListener('click', openGallery);
-    byId('mobileProjectBtn').addEventListener('click', openCurrentProject);
+    byId('mobileProjectBtn').addEventListener('click', openProjectsSpace);
+    byId('projectsBtn').addEventListener('click', openProjectsSpace);
     byId('galleryCameraBtn').addEventListener('click', () => byId('galleryCameraInput').click());
     byId('galleryUploadBtn').addEventListener('click', () => byId('galleryInput').click());
     byId('galleryCameraInput').addEventListener('change', async (event) => {
@@ -1199,11 +1338,14 @@
     });
     byId('galleryCloseBtn').addEventListener('click', closeGallery);
     byId('versionsCloseBtn').addEventListener('click', closeVersions);
+    byId('projectsCloseBtn').addEventListener('click', closeProjectsSpace);
+    byId('projectsSearch').addEventListener('input', filterProjects);
     byId('projectPhotosBtn').addEventListener('click', async () => {
       closeVersions();
       await openGallery();
     });
     document.querySelectorAll('[data-versions-close]').forEach((el) => el.addEventListener('click', closeVersions));
+    document.querySelectorAll('[data-projects-close]').forEach((el) => el.addEventListener('click', closeProjectsSpace));
     document.querySelectorAll('[data-gallery-close]').forEach((el) => el.addEventListener('click', closeGallery));
 
     function toggleClientView() {
