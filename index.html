@@ -271,8 +271,8 @@
       <button id="mobileClientBtn" class="mobile-dock-btn" type="button">
         <span class="dock-icon">◫</span><span id="mobileClientLabel">Client</span>
       </button>
-      <button id="mobileGalleryBtn" class="mobile-dock-btn" type="button">
-        <span class="dock-icon">▧</span><span>Gallery</span>
+      <button id="mobileProjectBtn" class="mobile-dock-btn" type="button">
+        <span class="dock-icon">▧</span><span>Project</span>
       </button>
       <button id="mobileSaveBtn" class="mobile-dock-btn mobile-save" type="button">
         <span class="dock-icon">✓</span><span>Save</span>
@@ -284,10 +284,16 @@
     <div class="modal-backdrop" data-versions-close></div>
     <section class="versions-dialog" role="dialog" aria-modal="true" aria-labelledby="versionsTitle">
       <div class="section-head gallery-head">
-        <div><h2 id="versionsTitle">Project calculations</h2><span id="versionsProjectLabel" class="muted"></span></div>
+        <div><h2 id="versionsTitle">Project</h2><span id="versionsProjectLabel" class="muted"></span></div>
         <button id="versionsCloseBtn" class="btn btn-ghost compact" type="button">Close</button>
       </div>
-      <div id="versionsList" class="versions-list"><p class="muted">No saved versions yet.</p></div>
+      <div class="project-hub-actions">
+        <button id="projectPhotosBtn" class="btn btn-secondary" type="button">Photos <span id="projectPhotoCount">0</span></button>
+      </div>
+      <div class="project-section-head">
+        <div><strong>Calculations</strong><span>Every saved version for this project</span></div>
+      </div>
+      <div id="versionsList" class="versions-list"><p class="muted">No saved calculations yet.</p></div>
     </section>
   </div>
 
