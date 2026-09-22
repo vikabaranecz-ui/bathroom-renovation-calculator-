@@ -549,3 +549,14 @@ input:focus,select:focus,textarea:focus{
   .history-row{grid-template-columns:1fr}
   .history-versions-btn{width:100%}
 }
+
+.project-hub-actions{display:flex;gap:8px;margin-bottom:18px}
+.project-section-head{
+  display:flex;align-items:end;justify-content:space-between;gap:12px;
+  padding-top:16px;margin-bottom:10px;border-top:1px solid var(--line)
+}
+.project-section-head strong{display:block;font-size:13px;color:#0f172a}
+.project-section-head span{display:block;margin-top:3px;font-size:11px;color:#64748b}
+@media(max-width:720px){
+  .project-hub-actions .btn{width:100%}
+}
