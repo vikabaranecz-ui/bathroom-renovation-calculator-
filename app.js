@@ -37,6 +37,7 @@
     session: null,
     pricing: Object.assign({}, DEFAULT_PRICING),
     pricingProfileId: null,
+    projectId: null,
     estimateId: null,
     lastResult: null,
     busy: false,
@@ -700,6 +701,7 @@
 
   function fillEstimate(record) {
     state.estimateId = record.id;
+    state.projectId = record.project_id || state.projectId || null;
     byId('estimateState').textContent = 'Saved estimate';
     setValue('clientName', record.client_name || '');
     setValue('clientPhone', record.client_phone || '');
@@ -764,6 +766,7 @@
   function resetEstimate() {
     closeGallery();
     setClientMode(false);
+    state.projectId = null;
     state.estimateId = null;
     byId('estimateState').textContent = 'New estimate';
     byId('galleryCount').textContent = '0';
@@ -817,10 +820,46 @@
       const userId = currentUserId();
       if (!userId) throw new Error('Not signed in');
 
+      const clientName = byId('clientName').value.trim();
+      const clientPhone = byId('clientPhone').value.trim();
+      const projectAddress = byId('projectAddress').value.trim();
+      const projectTitle = clientName || projectAddress || 'Bathroom project';
+
+      if (state.projectId) {
+        await rest('bathroom_projects?id=eq.' + encodeURIComponent(state.projectId), {
+          method: 'PATCH',
+          body: {
+            title: projectTitle,
+            client_name: clientName,
+            client_phone: clientPhone,
+            project_address: projectAddress,
+            updated_at: nowIso()
+          },
+          prefer: 'return=minimal'
+        });
+      } else {
+        const createdProjects = await rest('bathroom_projects', {
+          method: 'POST',
+          body: {
+            user_id: userId,
+            title: projectTitle,
+            client_name: clientName,
+            client_phone: clientPhone,
+            project_address: projectAddress,
+            status: 'active',
+            updated_at: nowIso()
+          },
+          prefer: 'return=representation'
+        });
+        if (!Array.isArray(createdProjects) || !createdProjects[0]) throw new Error('Could not create project');
+        state.projectId = createdProjects[0].id;
+      }
+
       const payload = {
-        client_name: byId('clientName').value.trim(),
-        client_phone: byId('clientPhone').value.trim(),
-        project_address: byId('projectAddress').value.trim(),
+        project_id: state.projectId,
+        client_name: clientName,
+        client_phone: clientPhone,
+        project_address: projectAddress,
         status: 'estimate',
         room: collectRoom(),
         scope: collectScope(),
@@ -834,13 +873,18 @@
         updated_at: nowIso()
       };
 
+      let savedRecord = null;
+
       if (state.estimateId) {
         const updated = await rest('bathroom_estimates?id=eq.' + encodeURIComponent(state.estimateId), {
           method: 'PATCH',
           body: payload,
           prefer: 'return=representation'
         });
-        if (Array.isArray(updated) && updated[0]) fillEstimate(updated[0]);
+        if (Array.isArray(updated) && updated[0]) {
+          savedRecord = updated[0];
+          fillEstimate(updated[0]);
+        }
       } else {
         payload.user_id = userId;
         const created = await rest('bathroom_estimates', {
@@ -848,11 +892,48 @@
           body: payload,
           prefer: 'return=representation'
         });
-        if (Array.isArray(created) && created[0]) fillEstimate(created[0]);
+        if (Array.isArray(created) && created[0]) {
+          savedRecord = created[0];
+          fillEstimate(created[0]);
+        }
       }
+
+      if (!savedRecord) {
+        const refreshed = await rest('bathroom_estimates?id=eq.' + encodeURIComponent(state.estimateId) + '&select=*&limit=1');
+        if (Array.isArray(refreshed) && refreshed[0]) savedRecord = refreshed[0];
+      }
+
+      if (savedRecord) {
+        await rest('bathroom_calculation_versions', {
+          method: 'POST',
+          body: {
+            project_id: state.projectId,
+            estimate_id: savedRecord.id,
+            user_id: userId,
+            snapshot: {
+              client_name: savedRecord.client_name,
+              client_phone: savedRecord.client_phone,
+              project_address: savedRecord.project_address,
+              status: savedRecord.status,
+              room: savedRecord.room,
+              scope: savedRecord.scope,
+              selections: savedRecord.selections,
+              pricing_snapshot: savedRecord.pricing_snapshot,
+              calculations: savedRecord.calculations,
+              notes: savedRecord.notes
+            },
+            total_ex_vat: savedRecord.total_ex_vat,
+            vat_rate: savedRecord.vat_rate,
+            total_inc_vat: savedRecord.total_inc_vat,
+            saved_at: nowIso()
+          },
+          prefer: 'return=minimal'
+        });
+      }
+
       await loadRecent();
       setSync('Synced');
-      toast('Estimate saved.');
+      toast('Project and calculation saved to cloud.');
     } catch (error) {
       setSync('Save failed', 'error');
       toast(error.message || 'Could not save estimate.', 'error');
@@ -878,15 +959,26 @@
       const created = row.created_at ? new Date(row.created_at) : null;
       const updatedText = updated ? updated.toLocaleDateString('nl-BE') + ' ' + updated.toLocaleTimeString('nl-BE', { hour: '2-digit', minute: '2-digit' }) : '';
       const createdText = created ? created.toLocaleDateString('nl-BE') : '';
-      return '<button class="recent-item" type="button" data-estimate-id="' + escapeHtml(row.id) + '">' +
+      return '<div class="history-row">' +
+        '<button class="recent-item" type="button" data-estimate-id="' + escapeHtml(row.id) + '">' +
         '<div><strong>' + escapeHtml(client) + '</strong>' +
         '<span>' + escapeHtml(address) + '</span>' +
         '<div class="history-meta">' +
         (updatedText ? '<span class="history-chip">Updated ' + escapeHtml(updatedText) + '</span>' : '') +
         (createdText ? '<span class="history-chip">Created ' + escapeHtml(createdText) + '</span>' : '') +
         '</div></div>' +
-        '<div class="history-amount">' + euro(Number(row.total_inc_vat || 0)) + '</div></button>';
+        '<div class="history-amount">' + euro(Number(row.total_inc_vat || 0)) + '</div></button>' +
+        '<button class="btn btn-secondary compact history-versions-btn" type="button" data-project-versions="' + escapeHtml(row.project_id || '') + '" data-project-title="' + escapeHtml(client + ' · ' + address) + '">Versions</button>' +
+        '</div>';
     }).join('');
+
+    list.querySelectorAll('[data-project-versions]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const projectId = button.getAttribute('data-project-versions');
+        if (!projectId) return;
+        await openVersions(projectId, button.getAttribute('data-project-title') || 'Project');
+      });
+    });
 
     list.querySelectorAll('[data-estimate-id]').forEach((button) => {
       button.addEventListener('click', async () => {
@@ -929,7 +1021,7 @@
 
   async function loadRecent() {
     try {
-      const rows = await rest('bathroom_estimates?select=id,client_name,client_phone,project_address,total_inc_vat,status,created_at,updated_at&order=updated_at.desc');
+      const rows = await rest('bathroom_estimates?select=id,project_id,client_name,client_phone,project_address,total_inc_vat,status,created_at,updated_at&order=updated_at.desc');
       state.historyRows = Array.isArray(rows) ? rows : [];
       renderHistory(state.historyRows);
     } catch (error) {
@@ -938,6 +1030,67 @@
       byId('recentList').innerHTML = '<p class="muted">Could not load calculation history.</p>';
       setSync('Sync issue', 'error');
     }
+  }
+
+
+  async function openVersions(projectId, label) {
+    byId('versionsProjectLabel').textContent = label || 'Project';
+    byId('versionsModal').hidden = false;
+    const list = byId('versionsList');
+    list.innerHTML = '<div class="gallery-loading">Loading calculations…</div>';
+    try {
+      const rows = await rest(
+        'bathroom_calculation_versions?project_id=eq.' + encodeURIComponent(projectId) +
+        '&select=id,project_id,estimate_id,snapshot,total_inc_vat,saved_at&order=saved_at.desc'
+      );
+      const items = Array.isArray(rows) ? rows : [];
+      if (!items.length) {
+        list.innerHTML = '<p class="muted">No saved calculation versions yet.</p>';
+        return;
+      }
+      list.innerHTML = items.map((row, index) => {
+        const date = row.saved_at ? new Date(row.saved_at) : null;
+        const when = date ? date.toLocaleDateString('nl-BE') + ' ' + date.toLocaleTimeString('nl-BE', { hour:'2-digit', minute:'2-digit' }) : '';
+        return '<button class="version-item" type="button" data-version-id="' + escapeHtml(row.id) + '">' +
+          '<div><strong>Calculation ' + (items.length - index) + '</strong><span>' + escapeHtml(when) + '</span></div>' +
+          '<b>' + euro(Number(row.total_inc_vat || 0)) + '</b></button>';
+      }).join('');
+      list.querySelectorAll('[data-version-id]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          try {
+            const rows = await rest('bathroom_calculation_versions?id=eq.' + encodeURIComponent(button.getAttribute('data-version-id')) + '&select=*&limit=1');
+            if (!Array.isArray(rows) || !rows[0]) return;
+            const version = rows[0];
+            const snapshot = version.snapshot || {};
+            fillEstimate({
+              id: version.estimate_id,
+              project_id: version.project_id,
+              client_name: snapshot.client_name || '',
+              client_phone: snapshot.client_phone || '',
+              project_address: snapshot.project_address || '',
+              status: snapshot.status || 'estimate',
+              room: snapshot.room || {},
+              scope: snapshot.scope || {},
+              selections: snapshot.selections || {},
+              pricing_snapshot: snapshot.pricing_snapshot || {},
+              calculations: snapshot.calculations || {},
+              notes: snapshot.notes || ''
+            });
+            byId('estimateState').textContent = 'Historical calculation';
+            closeVersions();
+            toast('Saved calculation loaded.');
+          } catch (error) {
+            toast(error.message || 'Could not load calculation version.', 'error');
+          }
+        });
+      });
+    } catch (error) {
+      list.innerHTML = '<p class="muted">Could not load project calculations.</p>';
+    }
+  }
+
+  function closeVersions() {
+    byId('versionsModal').hidden = true;
   }
 
   async function enterApp() {
@@ -1041,6 +1194,8 @@
       }
     });
     byId('galleryCloseBtn').addEventListener('click', closeGallery);
+    byId('versionsCloseBtn').addEventListener('click', closeVersions);
+    document.querySelectorAll('[data-versions-close]').forEach((el) => el.addEventListener('click', closeVersions));
     document.querySelectorAll('[data-gallery-close]').forEach((el) => el.addEventListener('click', closeGallery));
 
     function toggleClientView() {
