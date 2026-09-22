@@ -40,7 +40,8 @@
     estimateId: null,
     lastResult: null,
     busy: false,
-    galleryObjectUrls: []
+    galleryObjectUrls: [],
+    historyRows: []
   };
 
   const byId = (id) => document.getElementById(id);
@@ -860,37 +861,81 @@
     }
   }
 
+  function renderHistory(rows) {
+    const list = byId('recentList');
+    const items = Array.isArray(rows) ? rows : [];
+    byId('historyCount').textContent = items.length + (items.length === 1 ? ' saved' : ' saved');
+
+    if (!items.length) {
+      list.innerHTML = '<p class="muted">No saved calculations match your search.</p>';
+      return;
+    }
+
+    list.innerHTML = items.map((row) => {
+      const client = row.client_name || 'Unnamed client';
+      const address = row.project_address || 'No address';
+      const updated = row.updated_at ? new Date(row.updated_at) : null;
+      const created = row.created_at ? new Date(row.created_at) : null;
+      const updatedText = updated ? updated.toLocaleDateString('nl-BE') + ' ' + updated.toLocaleTimeString('nl-BE', { hour: '2-digit', minute: '2-digit' }) : '';
+      const createdText = created ? created.toLocaleDateString('nl-BE') : '';
+      return '<button class="recent-item" type="button" data-estimate-id="' + escapeHtml(row.id) + '">' +
+        '<div><strong>' + escapeHtml(client) + '</strong>' +
+        '<span>' + escapeHtml(address) + '</span>' +
+        '<div class="history-meta">' +
+        (updatedText ? '<span class="history-chip">Updated ' + escapeHtml(updatedText) + '</span>' : '') +
+        (createdText ? '<span class="history-chip">Created ' + escapeHtml(createdText) + '</span>' : '') +
+        '</div></div>' +
+        '<div class="history-amount">' + euro(Number(row.total_inc_vat || 0)) + '</div></button>';
+    }).join('');
+
+    list.querySelectorAll('[data-estimate-id]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        try {
+          setSync('Loading calculation', 'busy');
+          const rows = await rest('bathroom_estimates?id=eq.' + encodeURIComponent(button.getAttribute('data-estimate-id')) + '&select=*&limit=1');
+          if (Array.isArray(rows) && rows[0]) fillEstimate(rows[0]);
+          setSync('Synced');
+        } catch (error) {
+          setSync('Load failed', 'error');
+          toast(error.message || 'Could not load calculation.', 'error');
+        }
+      });
+    });
+  }
+
+  function filterHistory() {
+    const query = byId('historySearch').value.trim().toLowerCase();
+    if (!query) {
+      renderHistory(state.historyRows);
+      return;
+    }
+
+    const filtered = state.historyRows.filter((row) => {
+      const updated = row.updated_at ? new Date(row.updated_at).toLocaleString('nl-BE') : '';
+      const created = row.created_at ? new Date(row.created_at).toLocaleString('nl-BE') : '';
+      const haystack = [
+        row.client_name,
+        row.project_address,
+        row.client_phone,
+        row.status,
+        row.total_inc_vat,
+        updated,
+        created
+      ].filter(Boolean).join(' ').toLowerCase();
+      return haystack.includes(query);
+    });
+    renderHistory(filtered);
+  }
+
   async function loadRecent() {
     try {
-      const rows = await rest('bathroom_estimates?select=id,client_name,project_address,total_inc_vat,status,updated_at&order=updated_at.desc&limit=12');
-      const list = byId('recentList');
-      if (!Array.isArray(rows) || !rows.length) {
-        list.innerHTML = '<p class="muted">No saved estimates yet.</p>';
-        return;
-      }
-      list.innerHTML = rows.map((row) => {
-        const client = row.client_name || 'Unnamed client';
-        const address = row.project_address || 'No address';
-        const date = row.updated_at ? new Date(row.updated_at).toLocaleDateString('nl-BE') : '';
-        return '<button class="recent-item" type="button" data-estimate-id="' + escapeHtml(row.id) + '">' +
-          '<div><strong>' + escapeHtml(client) + '</strong><span>' + escapeHtml(address) + ' · ' + escapeHtml(date) + '</span></div>' +
-          '<b>' + euro(Number(row.total_inc_vat || 0)) + '</b></button>';
-      }).join('');
-      list.querySelectorAll('[data-estimate-id]').forEach((button) => {
-        button.addEventListener('click', async () => {
-          try {
-            setSync('Loading estimate', 'busy');
-            const rows = await rest('bathroom_estimates?id=eq.' + encodeURIComponent(button.getAttribute('data-estimate-id')) + '&select=*&limit=1');
-            if (Array.isArray(rows) && rows[0]) fillEstimate(rows[0]);
-            setSync('Synced');
-          } catch (error) {
-            setSync('Load failed', 'error');
-            toast(error.message || 'Could not load estimate.', 'error');
-          }
-        });
-      });
+      const rows = await rest('bathroom_estimates?select=id,client_name,client_phone,project_address,total_inc_vat,status,created_at,updated_at&order=updated_at.desc');
+      state.historyRows = Array.isArray(rows) ? rows : [];
+      renderHistory(state.historyRows);
     } catch (error) {
-      byId('recentList').innerHTML = '<p class="muted">Could not load saved estimates.</p>';
+      state.historyRows = [];
+      byId('historyCount').textContent = '0 saved';
+      byId('recentList').innerHTML = '<p class="muted">Could not load calculation history.</p>';
       setSync('Sync issue', 'error');
     }
   }
@@ -969,6 +1014,7 @@
       }
     });
     byId('refreshBtn').addEventListener('click', loadRecent);
+    byId('historySearch').addEventListener('input', filterHistory);
     byId('printBtn').addEventListener('click', () => window.print());
     byId('galleryBtn').addEventListener('click', openGallery);
     byId('mobileGalleryBtn').addEventListener('click', openGallery);

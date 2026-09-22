@@ -248,9 +248,18 @@
           <div id="breakdown" class="breakdown"></div>
         </section>
 
-        <section class="panel internal-only">
-          <div class="section-head"><div><h2>Saved estimates</h2></div><button id="refreshBtn" class="btn btn-ghost compact" type="button">Refresh</button></div>
-          <div id="recentList" class="recent-list"><p class="muted">No estimates loaded.</p></div>
+        <section class="panel internal-only history-panel">
+          <div class="section-head">
+            <div><h2>Calculation history</h2><span id="historyCount" class="pill neutral">0 saved</span></div>
+            <button id="refreshBtn" class="btn btn-ghost compact" type="button">Refresh</button>
+          </div>
+          <div class="history-toolbar">
+            <label class="history-search">
+              Search calculations
+              <input id="historySearch" type="search" placeholder="Client, address, date or amount…" autocomplete="off" />
+            </label>
+          </div>
+          <div id="recentList" class="recent-list"><p class="muted">No saved calculations yet.</p></div>
         </section>
       </aside>
     </main>

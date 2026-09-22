@@ -505,3 +505,21 @@ input:focus,select:focus,textarea:focus{
     order:2!important;
   }
 }
+
+.history-panel .section-head>div{flex-wrap:wrap}
+.history-toolbar{margin:-4px 0 14px}
+.history-search{max-width:100%}
+.history-search input{background:#f8fafc}
+.recent-item{align-items:center}
+.recent-item .history-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.recent-item .history-chip{
+  display:inline-flex;align-items:center;min-height:22px;padding:3px 7px;
+  border:1px solid #e2e8f0;border-radius:999px;background:#f8fafc;
+  color:#64748b;font-size:10px;font-weight:600
+}
+.recent-item .history-amount{font-size:13px;font-weight:700;color:#0f172a}
+@media(max-width:720px){
+  .history-panel{order:1!important}
+  .history-search input{font-size:16px}
+  .recent-item{grid-template-columns:1fr auto;gap:10px;padding:13px}
+}
