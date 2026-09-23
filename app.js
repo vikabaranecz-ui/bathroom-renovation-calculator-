@@ -1053,6 +1053,10 @@
     'Electric floor heating':'Elektrische vloerverwarming'
   };
 
+  function pdfEuro(value) {
+    return '€ ' + Number(value || 0).toLocaleString('nl-BE',{minimumFractionDigits:2,maximumFractionDigits:2}).replace(/\u00a0/g,' ');
+  }
+
   function dutchDate(value) {
     const d = value ? new Date(value) : new Date();
     return new Intl.DateTimeFormat('nl-BE',{day:'2-digit',month:'2-digit',year:'numeric'}).format(d);
@@ -1261,9 +1265,9 @@
     const vatAmount = result.totalIncVat - result.totalExVat;
     const left = pageW - 83;
     doc.setFontSize(10); doc.setTextColor(71,85,105);
-    doc.text('Totaal excl. btw',left,y); doc.setTextColor(15,23,42); doc.text(euro(result.totalExVat),pageW-m,y,{align:'right'}); y+=7;
-    doc.setTextColor(71,85,105); doc.text('Btw ' + vatPct + '%',left,y); doc.setTextColor(15,23,42); doc.text(euro(vatAmount),pageW-m,y,{align:'right'}); y+=9;
-    doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.text('Totaal incl. btw',left,y); doc.text(euro(result.totalIncVat),pageW-m,y,{align:'right'}); y+=13;
+    doc.text('Totaal excl. btw',left,y); doc.setTextColor(15,23,42); doc.text(pdfEuro(result.totalExVat),pageW-m,y,{align:'right'}); y+=7;
+    doc.setTextColor(71,85,105); doc.text('Btw ' + vatPct + '%',left,y); doc.setTextColor(15,23,42); doc.text(pdfEuro(vatAmount),pageW-m,y,{align:'right'}); y+=9;
+    doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.text('Totaal incl. btw',left,y); doc.text(pdfEuro(result.totalIncVat),pageW-m,y,{align:'right'}); y+=13;
 
     doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.text('Voorwaarden',m,y); y+=7;
     doc.setFont('helvetica','normal'); doc.setFontSize(9);
@@ -1311,6 +1315,11 @@
   }
 
   async function ensureSavedOfferte() {
+    if (state.currentOfferteId && state.currentOfferteBlob && state.currentOfferteFilename) {
+      const existing = await rest('bathroom_offertes?id=eq.' + encodeURIComponent(state.currentOfferteId) + '&select=*&limit=1');
+      if (Array.isArray(existing) && existing[0]) return existing[0];
+    }
+
     await saveOfferteProfile();
     const blob = generateOffertePdfBlob();
     const userId = currentUserId();
