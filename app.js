@@ -809,77 +809,40 @@
     'Review'
   ];
 
-  function questionText(label) {
-    if (label.classList.contains('toggle')) {
-      const toggleText = label.querySelector('span');
-      if (toggleText) return toggleText.textContent.trim();
-    }
-
-    const clone = label.cloneNode(true);
-    clone.querySelectorAll('input,select,textarea,span').forEach((node)=>node.remove());
-    return clone.textContent.replace(/\s+/g,' ').trim() || 'Question';
-  }
-
   function groupTitle(panel) {
     const heading = panel ? panel.querySelector('h2') : null;
     return heading ? heading.textContent.trim() : 'Inspection';
   }
 
   function buildQuestionFlow() {
-    wizardQuestions = [];
-    wizardGroups = [];
-
     const panels = Array.from(document.querySelectorAll('.wizard-step'));
-
-    panels.forEach((panel,groupIndex)=>{
-      const labels = Array.from(panel.querySelectorAll('label'))
-        .filter((label)=>!label.closest('[hidden]'));
-
-      const group = {
-        index: groupIndex,
-        title: groupTitle(panel),
-        short: GROUP_SHORT_NAMES[groupIndex] || groupTitle(panel),
-        start: wizardQuestions.length,
-        count: labels.length
-      };
-
-      labels.forEach((label,questionIndex)=>{
-        const flatIndex = wizardQuestions.length;
-        label.classList.add('question-item');
-        label.setAttribute('data-question-index',String(flatIndex));
-        label.setAttribute('data-question-group',String(groupIndex));
-        label.setAttribute('data-question-in-group',String(questionIndex));
-        wizardQuestions.push({
-          element: label,
-          groupIndex,
-          questionIndex,
-          title: questionText(label)
-        });
-      });
-
-      wizardGroups.push(group);
-    });
-
+    wizardQuestions = panels;
+    wizardGroups = panels.map((panel,index)=>({
+      index,
+      title: groupTitle(panel),
+      short: GROUP_SHORT_NAMES[index] || groupTitle(panel)
+    }));
     wizardGroups.push({
-      index: wizardGroups.length,
+      index: panels.length,
       title: 'Review & price',
       short: 'Review',
-      start: wizardQuestions.length,
-      count: 1,
       review: true
     });
-
     renderWizardGroups();
   }
 
   function renderWizardGroups() {
     const nav=byId('wizardGroupNav');
     if(!nav) return;
-
     nav.innerHTML=wizardGroups.map((group)=>
-      '<span class="wizard-group-chip" data-wizard-group-chip="'+group.index+'">'+
-      escapeHtml(group.short)+'</span>'
+      '<button class="wizard-group-chip" type="button" data-wizard-group-chip="'+group.index+'">'+
+      escapeHtml(group.short)+'</button>'
     ).join('');
+    nav.querySelectorAll('[data-wizard-group-chip]').forEach((chip)=>{
+      chip.addEventListener('click',()=>{
+        setWizardStep(Number(chip.getAttribute('data-wizard-group-chip')));
+      });
+    });
   }
 
   function updateWizardGroupNav(activeGroupIndex) {
@@ -893,54 +856,43 @@
     });
   }
 
-  function setQuestion(index, options) {
+  function setWizardStep(index, options) {
     const opts=options||{};
-    const total=wizardQuestions.length;
-    const reviewIndex=total;
-    state.wizardStep=Math.max(0,Math.min(reviewIndex,Number(index)||0));
+    if(!wizardGroups.length) buildQuestionFlow();
+
+    const maxIndex=wizardGroups.length-1;
+    state.wizardStep=Math.max(0,Math.min(maxIndex,Number(index)||0));
+    const final=state.wizardStep===maxIndex;
 
     document.querySelectorAll('.wizard-step').forEach((panel)=>panel.classList.remove('is-active'));
-    document.querySelectorAll('.question-item').forEach((label)=>label.classList.remove('question-active'));
     byId('wizardReview').classList.remove('is-active');
-
-    const final=state.wizardStep===reviewIndex;
     document.body.classList.toggle('wizard-final',final);
 
+    const group=wizardGroups[state.wizardStep];
+
     if(final){
-      const reviewGroup=wizardGroups[wizardGroups.length-1];
       byId('wizardReview').classList.add('is-active');
       byId('wizardGroupLabel').textContent='REVIEW & PRICE';
-      byId('wizardStepLabel').textContent='Final step';
+      byId('wizardStepLabel').textContent='Step '+(state.wizardStep+1)+' of '+wizardGroups.length;
       byId('wizardStepTitle').textContent='Review & estimated client price';
-      byId('wizardProgressBar').style.width='100%';
-      byId('wizardBackBtn').disabled=total===0;
       byId('wizardNextBtn').textContent='Done';
-      updateWizardGroupNav(reviewGroup.index);
     }else{
-      const current=wizardQuestions[state.wizardStep];
-      const label=current.element;
-      const panel=label.closest('.wizard-step');
-      const group=wizardGroups[current.groupIndex];
-
-      panel.classList.add('is-active');
-      label.classList.add('question-active');
-
+      const panel=document.querySelector('.wizard-step[data-wizard-step="'+state.wizardStep+'"]');
+      if(panel) panel.classList.add('is-active');
       byId('wizardGroupLabel').textContent=group.title.toUpperCase();
-      byId('wizardStepLabel').textContent=
-        'Question '+(current.questionIndex+1)+' of '+group.count;
-      byId('wizardStepTitle').textContent=current.title;
-
-      byId('wizardProgressBar').style.width=
-        (((state.wizardStep+1)/(total+1))*100)+'%';
-
-      byId('wizardBackBtn').disabled=state.wizardStep===0;
+      byId('wizardStepLabel').textContent='Step '+(state.wizardStep+1)+' of '+wizardGroups.length;
+      byId('wizardStepTitle').textContent=group.title;
       byId('wizardNextBtn').textContent='Next';
-      updateWizardGroupNav(current.groupIndex);
+    }
 
-      const focusable=label.querySelector('input,select,textarea');
-      if(focusable && !opts.noFocus){
-        window.setTimeout(()=>focusable.focus({preventScroll:true}),120);
-      }
+    byId('wizardProgressBar').style.width=(((state.wizardStep+1)/wizardGroups.length)*100)+'%';
+    byId('wizardBackBtn').disabled=state.wizardStep===0;
+    updateWizardGroupNav(state.wizardStep);
+
+    if(!opts.noFocus && !final){
+      const panel=document.querySelector('.wizard-step[data-wizard-step="'+state.wizardStep+'"]');
+      const focusable=panel && panel.querySelector('input,select,textarea');
+      if(focusable) window.setTimeout(()=>focusable.focus({preventScroll:true}),120);
     }
 
     if(!opts.noScroll){
@@ -949,31 +901,22 @@
     }
   }
 
-  function setWizardStep(index, options) {
-    if(!wizardQuestions.length) buildQuestionFlow();
-    if(Number(index)>=6){
-      setQuestion(wizardQuestions.length,options);
-    }else{
-      const group=wizardGroups[Math.max(0,Math.min(5,Number(index)||0))];
-      setQuestion(group ? group.start : 0,options);
-    }
+  function setQuestion(index, options) {
+    setWizardStep(index, options);
   }
 
   function wizardNext() {
-    if(!wizardQuestions.length) buildQuestionFlow();
-    if(state.wizardStep<wizardQuestions.length){
-      setQuestion(state.wizardStep+1);
-    }else{
-      window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
-    }
+    if(!wizardGroups.length) buildQuestionFlow();
+    const max=wizardGroups.length-1;
+    if(state.wizardStep<max) setWizardStep(state.wizardStep+1);
+    else window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
   }
 
   function wizardBack() {
-    if(!wizardQuestions.length) buildQuestionFlow();
-    if(state.wizardStep>0) setQuestion(state.wizardStep-1);
+    if(state.wizardStep>0) setWizardStep(state.wizardStep-1);
   }
 
-  
+
   function resetEstimate() {
     closeGallery();
     setClientMode(false);
@@ -1818,6 +1761,8 @@
   }
 
   function openSettings() {
+    closeAppSpaces();
+    setMobileNavActive('settings');
     if(state.offerteProfile) fillOfferteProfileForm(state.offerteProfile);
     byId('settingsModal').hidden=false;
   }
@@ -1828,6 +1773,7 @@
 
   function closeProjectsSpace() {
     byId('projectsModal').hidden = true;
+    setMobileNavActive('calculator');
   }
 
   function renderProjects(rows) {
@@ -1978,6 +1924,8 @@
 
   async function openProjectsSpace() {
     try {
+      closeAppSpaces();
+      setMobileNavActive('projects');
       byId('projectsModal').hidden = false;
       byId('projectsSearch').value = '';
       await loadProjectsSpace();
@@ -2106,6 +2054,31 @@
     byId('versionsModal').hidden = true;
   }
 
+  function closeAppSpaces() {
+    ['homeModal','projectsModal','offersModal','settingsModal'].forEach((id)=>{
+      const el=byId(id);
+      if(el) el.hidden=true;
+    });
+  }
+
+  function setMobileNavActive(name) {
+    document.querySelectorAll('.app-bottom-nav [data-nav]').forEach((button)=>{
+      button.classList.toggle('is-active',button.getAttribute('data-nav')===name);
+    });
+  }
+
+  function openHomeSpace() {
+    closeAppSpaces();
+    byId('homeModal').hidden=false;
+    setMobileNavActive('home');
+  }
+
+  function openCalculatorSpace() {
+    closeAppSpaces();
+    setMobileNavActive('calculator');
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+
   async function enterApp() {
     byId('authGate').hidden = true;
     byId('app').hidden = false;
@@ -2114,7 +2087,7 @@
       await loadPricing();
       await loadOfferteProfile();
       calculate();
-      await openProjectsSpace();
+      openHomeSpace();
     } catch (error) {
       setSync('Sync issue', 'error');
       toast(error.message || 'Connected, but some data could not load.', 'error');
@@ -2171,11 +2144,18 @@
     byId('signOutBtn').addEventListener('click', signOut);
     byId('saveBtn').addEventListener('click', () => saveEstimate({draft:false}));
     byId('saveBtnMobile').addEventListener('click', () => saveEstimate({draft:false}));
-    byId('mobileSaveBtn').addEventListener('click', () => saveEstimate({draft:false}));
     byId('newBtn').addEventListener('click', resetEstimate);
+    byId('mobileHomeBtn').addEventListener('click', openHomeSpace);
+    byId('mobileCalculatorBtn').addEventListener('click', openCalculatorSpace);
+    byId('mobileProjectBtn').addEventListener('click', openProjectsSpace);
+    byId('mobileOffersBtn').addEventListener('click', openOffersSpace);
+    byId('mobileSettingsBtn').addEventListener('click', openSettings);
+    byId('homeNewCalculationBtn').addEventListener('click', () => { openCalculatorSpace(); resetEstimate(); });
+    byId('homeProjectsBtn').addEventListener('click', openProjectsSpace);
+    byId('homeOffersBtn').addEventListener('click', openOffersSpace);
+    byId('homeSettingsBtn').addEventListener('click', openSettings);
     byId('wizardBackBtn').addEventListener('click', wizardBack);
     byId('wizardNextBtn').addEventListener('click', wizardNext);
-    byId('mobileNewBtn').addEventListener('click', resetEstimate);
     byId('saveRatesBtn').addEventListener('click', async () => {
       try { await savePricing(); } catch (error) {
         setSync('Save failed', 'error');
@@ -2188,7 +2168,6 @@
       await deleteCurrentCalculation();
     });
     byId('offerteBtn').addEventListener('click', openOfferteModal);
-    byId('mobileProjectBtn').addEventListener('click', openProjectsSpace);
     byId('projectsBtn').addEventListener('click', openProjectsSpace);
     byId('topOffersBtn').addEventListener('click', openOffersSpace);
     byId('projectsOffersBtn').addEventListener('click', openOffersSpace);
@@ -2201,7 +2180,6 @@
     byId('settingsCloseBtn').addEventListener('click', closeSettings);
     document.querySelectorAll('[data-settings-close]').forEach((el)=>el.addEventListener('click',closeSettings));
     byId('topOfferteBtn').addEventListener('click', openOfferteModal);
-    byId('mobileOfferteBtn').addEventListener('click', openOfferteModal);
     byId('summaryClientBtn').addEventListener('click', () => {
       setClientMode(true);
       window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
