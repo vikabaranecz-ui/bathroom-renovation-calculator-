@@ -702,3 +702,4 @@ input:focus,select:focus,textarea:focus{
   .summary-actions{grid-template-columns:1fr!important}
   .delete-calculation-zone{margin-bottom:8px}
 }
+.brand-logo{width:46px;height:30px;object-fit:contain;display:block}.brand-lockup{align-items:center}
