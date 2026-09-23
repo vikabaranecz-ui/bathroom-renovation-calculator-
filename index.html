@@ -31,21 +31,25 @@
   </div>
 
   <div id="app" class="app-shell" hidden>
-    <header class="topbar">
-      <div class="brand-lockup">
+    <header class="topbar app-menu">
+      <div class="brand-lockup app-brand">
         <img class="brand-logo" src="./assets/rr-logo.png" alt="Reno Rangers" />
-        <div><strong>Bathroom Calculator</strong><small>Professional Estimator</small></div>
+        <div><strong>Bathroom Calculator</strong><small>Reno Rangers · Estimator</small></div>
       </div>
-      <div class="top-actions">
+
+      <nav class="topbar-main-actions" aria-label="Main navigation">
+        <button id="projectsBtn" class="menu-nav-btn" type="button">Projects</button>
+        <button id="topOffersBtn" class="menu-nav-btn" type="button">Offers</button>
+        <button id="topOfferteBtn" class="menu-nav-btn" type="button">New offerte</button>
+      </nav>
+
+      <div class="topbar-utility">
         <span id="syncStatus" class="sync-status">Synced</span>
-        <button id="clientViewBtn" class="btn btn-ghost" type="button">Client view</button>
-        <button id="newBtn" class="btn btn-secondary" type="button">New</button>
-        <button id="projectsBtn" class="btn btn-secondary" type="button">Projects</button>
-        <button id="topOffersBtn" class="btn btn-secondary" type="button">Offers</button>
-        <button id="topOfferteBtn" class="btn btn-secondary" type="button">New offerte</button>
-        <button id="settingsBtn" class="btn btn-ghost" type="button">Settings</button>
-        <button id="saveBtn" class="btn btn-primary" type="button">Save calculation</button>
-        <button id="signOutBtn" class="btn btn-ghost" type="button">Sign out</button>
+        <button id="clientViewBtn" class="menu-utility-btn" type="button">Client view</button>
+        <button id="newBtn" class="menu-utility-btn" type="button">New</button>
+        <button id="settingsBtn" class="menu-utility-btn" type="button">Settings</button>
+        <button id="saveBtn" class="btn btn-primary menu-save-btn" type="button">Save</button>
+        <button id="signOutBtn" class="menu-signout-btn" type="button" title="Sign out" aria-label="Sign out">↗</button>
       </div>
     </header>
 
