@@ -908,7 +908,6 @@
 
     if(final){
       const reviewGroup=wizardGroups[wizardGroups.length-1];
-      byId('wizardReview').classList.add('is-active');
       byId('wizardGroupLabel').textContent='REVIEW & PRICE';
       byId('wizardStepLabel').textContent='Final step';
       byId('wizardStepTitle').textContent='Review & estimated client price';
@@ -916,6 +915,10 @@
       byId('wizardBackBtn').disabled=total===0;
       byId('wizardNextBtn').textContent='Done';
       updateWizardGroupNav(reviewGroup.index);
+      const finalCard=document.querySelector('.final-estimate-card');
+      if(finalCard && !opts.noScroll){
+        window.setTimeout(()=>finalCard.scrollIntoView({behavior:'smooth',block:'start'}),80);
+      }
     }else{
       const current=wizardQuestions[state.wizardStep];
       const label=current.element;
