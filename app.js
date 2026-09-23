@@ -48,7 +48,10 @@
     offerteProfile: null,
     currentOfferteId: null,
     currentOfferteBlob: null,
-    currentOfferteFilename: null
+    currentOfferteFilename: null,
+    autosaveTimer: null,
+    lastSavedAt: null,
+    dirty: false
   };
 
   const byId = (id) => document.getElementById(id);
@@ -76,6 +79,16 @@
     const el = byId('syncStatus');
     el.textContent = message;
     el.className = 'sync-status' + (type ? ' ' + type : '');
+  }
+
+  function savedTimeLabel() {
+    if (!state.lastSavedAt) return 'Saved';
+    return 'Saved ' + state.lastSavedAt.toLocaleTimeString('nl-BE',{hour:'2-digit',minute:'2-digit'});
+  }
+
+  function markUnsaved() {
+    state.dirty = true;
+    setSync('Unsaved changes', 'unsaved');
   }
 
   let toastTimer = null;
@@ -773,7 +786,8 @@
   function setClientMode(active) {
     document.body.classList.toggle('client-mode', Boolean(active));
     byId('clientViewBtn').textContent = active ? 'Internal view' : 'Client view';
-    byId('mobileClientLabel').textContent = active ? 'Internal' : 'Client';
+    const mobileClientLabel = byId('mobileClientLabel');
+    if (mobileClientLabel) mobileClientLabel.textContent = active ? 'Internal' : 'Client';
     calculate();
   }
 
@@ -823,13 +837,20 @@
     const firstPanel = document.querySelector('.editor-column .panel');
     if (firstPanel) firstPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setTimeout(() => byId('clientName').focus({ preventScroll: true }), 350);
-    toast('New estimate started.');
+    state.dirty=false;
+    state.lastSavedAt=null;
+    setSync('New calculation');
+    toast('New calculation started.');
   }
 
-  async function saveEstimate() {
-    if (state.busy) return;
+
+  async function saveEstimate(options) {
+    const opts = options || {};
+    const draft = Boolean(opts.draft);
+    const silent = Boolean(opts.silent);
+    if (state.busy) return false;
     state.busy = true;
-    setSync('Saving estimate', 'busy');
+    if (!silent) setSync(draft ? 'Autosaving…' : 'Saving version…', 'busy');
     try {
       const result = calculate();
       const userId = currentUserId();
@@ -842,101 +863,88 @@
 
       if (state.projectId) {
         await rest('bathroom_projects?id=eq.' + encodeURIComponent(state.projectId), {
-          method: 'PATCH',
-          body: {
-            title: projectTitle,
-            client_name: clientName,
-            client_phone: clientPhone,
-            project_address: projectAddress,
-            updated_at: nowIso()
-          },
-          prefer: 'return=minimal'
+          method:'PATCH',
+          body:{title:projectTitle,client_name:clientName,client_phone:clientPhone,project_address:projectAddress,updated_at:nowIso()},
+          prefer:'return=minimal'
         });
       } else {
         const createdProjects = await rest('bathroom_projects', {
-          method: 'POST',
-          body: {
-            user_id: userId,
-            title: projectTitle,
-            client_name: clientName,
-            client_phone: clientPhone,
-            project_address: projectAddress,
-            status: 'active',
-            updated_at: nowIso()
-          },
-          prefer: 'return=representation'
+          method:'POST',
+          body:{user_id:userId,title:projectTitle,client_name:clientName,client_phone:clientPhone,project_address:projectAddress,status:'active',updated_at:nowIso()},
+          prefer:'return=representation'
         });
         if (!Array.isArray(createdProjects) || !createdProjects[0]) throw new Error('Could not create project');
         state.projectId = createdProjects[0].id;
       }
 
       const payload = {
-        project_id: state.projectId,
-        client_name: clientName,
-        client_phone: clientPhone,
-        project_address: projectAddress,
-        status: 'estimate',
-        room: collectRoom(),
-        scope: collectScope(),
-        selections: collectSelections(),
-        pricing_snapshot: state.pricing,
-        calculations: result,
-        total_ex_vat: Number(result.totalExVat.toFixed(2)),
-        vat_rate: Number(result.vatRate.toFixed(4)),
-        total_inc_vat: Number(result.totalIncVat.toFixed(2)),
-        notes: byId('notes').value.trim(),
-        updated_at: nowIso()
+        project_id:state.projectId,
+        client_name:clientName,
+        client_phone:clientPhone,
+        project_address:projectAddress,
+        status:'estimate',
+        room:collectRoom(),
+        scope:collectScope(),
+        selections:collectSelections(),
+        pricing_snapshot:state.pricing,
+        calculations:result,
+        total_ex_vat:Number(result.totalExVat.toFixed(2)),
+        vat_rate:Number(result.vatRate.toFixed(4)),
+        total_inc_vat:Number(result.totalIncVat.toFixed(2)),
+        notes:byId('notes').value.trim(),
+        version_nonce:draft ? null : crypto.randomUUID(),
+        updated_at:nowIso()
       };
 
-      let savedRecord = null;
-
-      if (state.estimateId) {
-        const updated = await rest('bathroom_estimates?id=eq.' + encodeURIComponent(state.estimateId), {
-          method: 'PATCH',
-          body: payload,
-          prefer: 'return=representation'
+      let savedRecord=null;
+      if(state.estimateId){
+        const updated=await rest('bathroom_estimates?id=eq.'+encodeURIComponent(state.estimateId),{
+          method:'PATCH',body:payload,prefer:'return=representation'
         });
-        if (Array.isArray(updated) && updated[0]) {
-          savedRecord = updated[0];
-          fillEstimate(updated[0]);
-        }
-      } else {
-        payload.user_id = userId;
-        const created = await rest('bathroom_estimates', {
-          method: 'POST',
-          body: payload,
-          prefer: 'return=representation'
+        if(Array.isArray(updated)&&updated[0]) savedRecord=updated[0];
+      }else{
+        payload.user_id=userId;
+        const created=await rest('bathroom_estimates',{
+          method:'POST',body:payload,prefer:'return=representation'
         });
-        if (Array.isArray(created) && created[0]) {
-          savedRecord = created[0];
-          fillEstimate(created[0]);
-        }
+        if(Array.isArray(created)&&created[0]) savedRecord=created[0];
       }
+      if(!savedRecord) throw new Error('Could not save calculation');
 
-      if (!savedRecord) {
-        const refreshed = await rest('bathroom_estimates?id=eq.' + encodeURIComponent(state.estimateId) + '&select=*&limit=1');
-        if (Array.isArray(refreshed) && refreshed[0]) savedRecord = refreshed[0];
+      state.estimateId=savedRecord.id;
+      state.projectId=savedRecord.project_id || state.projectId;
+      byId('estimateState').textContent=draft ? 'Draft saved' : 'Version saved';
+      state.lastSavedAt=new Date();
+      state.dirty=false;
+      setSync(savedTimeLabel());
+      if(!silent) toast(draft ? 'Draft saved.' : 'Calculation version saved.');
+      return true;
+    }catch(error){
+      const message=error&&error.message?error.message:'Could not save estimate.';
+      if(!silent){
+        setSync('Save failed','error');
+        toast('Save failed: '+message,'error');
       }
-
-      // Project linking and calculation versioning are guaranteed by database triggers.
-      // The browser only needs to save the estimate itself.
-      try { await loadRecent(); } catch {}
-
-      setSync('Synced');
-      toast('Estimate and project history saved.');
-    } catch (error) {
-      const message = error && error.message ? error.message : 'Could not save estimate.';
-      setSync('Save failed', 'error');
-      toast('Save failed: ' + message, 'error');
-    } finally {
-      state.busy = false;
+      return false;
+    }finally{
+      state.busy=false;
     }
+  }
+
+  function scheduleAutosave() {
+    window.clearTimeout(state.autosaveTimer);
+    if(!state.estimateId) return;
+    state.autosaveTimer=window.setTimeout(()=>{
+      if(state.dirty) saveEstimate({draft:true,silent:true});
+    },1800);
   }
 
   function renderHistory(rows) {
     const list = byId('recentList');
+    if(!list) return;
     const items = Array.isArray(rows) ? rows : [];
-    byId('historyCount').textContent = items.length + (items.length === 1 ? ' saved' : ' saved');
+    const historyCount=byId('historyCount');
+    if(historyCount) historyCount.textContent = items.length + (items.length === 1 ? ' saved' : ' saved');
 
     if (!items.length) {
       list.innerHTML = '<p class="muted">No saved calculations match your search.</p>';
@@ -1014,11 +1022,8 @@
     try {
       const rows = await rest('bathroom_estimates?deleted_at=is.null&select=id,project_id,client_name,client_phone,project_address,total_inc_vat,status,created_at,updated_at&order=updated_at.desc');
       state.historyRows = Array.isArray(rows) ? rows : [];
-      renderHistory(state.historyRows);
     } catch (error) {
       state.historyRows = [];
-      byId('historyCount').textContent = '0 saved';
-      byId('recentList').innerHTML = '<p class="muted">Could not load calculation history.</p>';
       setSync('Sync issue', 'error');
     }
   }
@@ -1500,6 +1505,16 @@
     }
   }
 
+
+  function openSettings() {
+    if(state.offerteProfile) fillOfferteProfileForm(state.offerteProfile);
+    byId('settingsModal').hidden=false;
+  }
+
+  function closeSettings() {
+    byId('settingsModal').hidden=true;
+  }
+
   function closeProjectsSpace() {
     byId('projectsModal').hidden = true;
   }
@@ -1533,17 +1548,10 @@
         '</div>' +
         '<div class="project-actions">' +
           '<div class="project-total">' + escapeHtml(total) + '</div>' +
-          '<button class="btn btn-primary compact" type="button" data-project-open="' + escapeHtml(row.id) + '">Open</button>' +
-          '<button class="btn btn-secondary compact" type="button" data-project-details="' + escapeHtml(row.id) + '">Details</button>' +
+          '<button class="btn btn-primary compact" type="button" data-project-details="' + escapeHtml(row.id) + '">Open project</button>' +
         '</div>' +
       '</article>';
     }).join('');
-
-    list.querySelectorAll('[data-project-open]').forEach((button) => {
-      button.addEventListener('click', async () => {
-        await openSavedProject(button.getAttribute('data-project-open'), false);
-      });
-    });
 
     list.querySelectorAll('[data-project-details]').forEach((button) => {
       button.addEventListener('click', async () => {
@@ -1728,6 +1736,7 @@
       await loadRecent();
       await loadOfferteProfile();
       calculate();
+      await openProjectsSpace();
     } catch (error) {
       setSync('Sync issue', 'error');
       toast(error.message || 'Connected, but some data could not load.', 'error');
@@ -1782,9 +1791,9 @@
     });
 
     byId('signOutBtn').addEventListener('click', signOut);
-    byId('saveBtn').addEventListener('click', saveEstimate);
-    byId('saveBtnMobile').addEventListener('click', saveEstimate);
-    byId('mobileSaveBtn').addEventListener('click', saveEstimate);
+    byId('saveBtn').addEventListener('click', () => saveEstimate({draft:false}));
+    byId('saveBtnMobile').addEventListener('click', () => saveEstimate({draft:false}));
+    byId('mobileSaveBtn').addEventListener('click', () => saveEstimate({draft:false}));
     byId('newBtn').addEventListener('click', resetEstimate);
     byId('mobileNewBtn').addEventListener('click', resetEstimate);
     byId('saveRatesBtn').addEventListener('click', async () => {
@@ -1793,13 +1802,21 @@
         toast(error.message || 'Could not save rates.', 'error');
       }
     });
-    byId('refreshBtn').addEventListener('click', loadRecent);
-    byId('historySearch').addEventListener('input', filterHistory);
     byId('deleteCalculationBtn').addEventListener('click', deleteCurrentCalculation);
     byId('offerteBtn').addEventListener('click', openOfferteModal);
-    byId('galleryBtn').addEventListener('click', openGallery);
     byId('mobileProjectBtn').addEventListener('click', openProjectsSpace);
     byId('projectsBtn').addEventListener('click', openProjectsSpace);
+    byId('projectsNewBtn').addEventListener('click', () => { closeProjectsSpace(); resetEstimate(); });
+    byId('settingsBtn').addEventListener('click', openSettings);
+    byId('projectsSettingsBtn').addEventListener('click', openSettings);
+    byId('settingsCloseBtn').addEventListener('click', closeSettings);
+    document.querySelectorAll('[data-settings-close]').forEach((el)=>el.addEventListener('click',closeSettings));
+    byId('topOfferteBtn').addEventListener('click', openOfferteModal);
+    byId('mobileOfferteBtn').addEventListener('click', openOfferteModal);
+    byId('summaryClientBtn').addEventListener('click', () => {
+      setClientMode(true);
+      window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
+    });
     byId('galleryCameraBtn').addEventListener('click', () => byId('galleryCameraInput').click());
     byId('galleryUploadBtn').addEventListener('click', () => byId('galleryInput').click());
     byId('galleryCameraInput').addEventListener('change', async (event) => {
@@ -1854,11 +1871,17 @@
     }
 
     byId('clientViewBtn').addEventListener('click', toggleClientView);
-    byId('mobileClientBtn').addEventListener('click', toggleClientView);
 
     document.querySelectorAll('#app input, #app select, #app textarea').forEach((el) => {
-      el.addEventListener('input', calculate);
-      el.addEventListener('change', calculate);
+      const onEdit = () => {
+        calculate();
+        if(!el.matches('[data-price],[data-price-check]')){
+          markUnsaved();
+          scheduleAutosave();
+        }
+      };
+      el.addEventListener('input', onEdit);
+      el.addEventListener('change', onEdit);
     });
   }
 
