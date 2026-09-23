@@ -670,3 +670,36 @@ input:focus,select:focus,textarea:focus{
   .delete-calculation-btn{width:auto}
   .delete-calculation-zone p{margin:7px 0 0}
 }
+
+/* UX architecture: Projects home → Calculator → Project details */
+.settings-dialog{
+  position:relative;z-index:1;width:min(980px,100%);max-height:min(90vh,940px);
+  overflow:auto;background:#fff;border:1px solid var(--line);border-radius:24px;
+  padding:22px;box-shadow:var(--shadow-lg)
+}
+.settings-stack{display:grid;gap:14px}
+.settings-card{border:1px solid var(--line);border-radius:18px;padding:18px;background:#fff}
+.settings-card .step{display:none}
+.settings-head .muted{display:block;margin-top:4px}
+.projects-head-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.projects-dialog{width:min(980px,100%)}
+.project-hub-actions{flex-wrap:wrap}
+.project-hub-actions .active{border-color:#0f172a;background:#0f172a;color:#fff}
+.history-panel{display:none!important}
+.summary-actions{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+.sync-status.unsaved{color:#92400e;background:#fffbeb;border-color:#fde68a}
+.home-open .topbar{opacity:.98}
+@media(max-width:720px){
+  .settings-dialog{
+    position:fixed;inset:0;width:100%;height:100%;max-height:none;border:0;border-radius:0;
+    padding:14px 12px calc(90px + env(safe-area-inset-bottom))
+  }
+  .settings-head{position:sticky;top:-14px;z-index:3;background:#fff;padding:14px 0 10px}
+  .projects-dialog{padding-bottom:calc(90px + env(safe-area-inset-bottom))}
+  .projects-head{align-items:flex-start}
+  .projects-head-actions{width:100%;display:grid;grid-template-columns:1fr 1fr}
+  .projects-head-actions #projectsCloseBtn{grid-column:1/-1}
+  .summary-actions{grid-template-columns:1fr!important}
+  .delete-calculation-zone{margin-bottom:8px}
+}
+.brand-logo{width:46px;height:30px;object-fit:contain;display:block}.brand-lockup{align-items:center}
