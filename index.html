@@ -44,14 +44,22 @@
         <button id="topOffersBtn" class="btn btn-secondary" type="button">Offers</button>
         <button id="topOfferteBtn" class="btn btn-secondary" type="button">New offerte</button>
         <button id="settingsBtn" class="btn btn-ghost" type="button">Settings</button>
-        <button id="saveBtn" class="btn btn-primary" type="button">Save version</button>
+        <button id="saveBtn" class="btn btn-primary" type="button">Save calculation</button>
         <button id="signOutBtn" class="btn btn-ghost" type="button">Sign out</button>
       </div>
     </header>
 
     <main class="workspace">
       <div class="editor-column">
-        <section class="panel">
+        <div class="wizard-header">
+          <div class="wizard-progress-copy">
+            <span id="wizardStepLabel">Step 1 of 7</span>
+            <strong id="wizardStepTitle">Client & project</strong>
+          </div>
+          <div class="wizard-progress-track"><span id="wizardProgressBar"></span></div>
+        </div>
+
+        <section class="panel wizard-step" data-wizard-step="0">
           <div class="section-head">
             <div><span class="step">01</span><h2>Client & project</h2></div>
             <span id="estimateState" class="pill">New estimate</span>
@@ -65,7 +73,7 @@
           <label class="wide-label">Inspection notes<textarea id="notes" rows="2" placeholder="Access, existing problems, client wishes, hidden-risk notes…"></textarea></label>
         </section>
 
-        <section class="panel">
+        <section class="panel wizard-step" data-wizard-step="1">
           <div class="section-head"><div><span class="step">02</span><h2>Room measurements</h2></div></div>
           <div class="form-grid three">
             <label>Length <span>m</span><input id="length" type="number" min="0" step="0.01" value="0" /></label>
@@ -97,7 +105,7 @@
           </div>
         </section>
 
-        <section class="panel">
+        <section class="panel wizard-step" data-wizard-step="2">
           <div class="section-head"><div><span class="step">03</span><h2>Demolition & preparation</h2></div></div>
           <div class="form-grid two">
             <label>Demolition
@@ -125,7 +133,7 @@
           </div>
         </section>
 
-        <section class="panel">
+        <section class="panel wizard-step" data-wizard-step="3">
           <div class="section-head"><div><span class="step">04</span><h2>Plumbing, electricity & fixtures</h2></div></div>
           <div class="form-grid three">
             <label>Water points moved<input id="waterMoves" type="number" min="0" max="20" step="1" value="0" /></label>
@@ -142,7 +150,7 @@
           </div>
         </section>
 
-        <section class="panel">
+        <section class="panel wizard-step" data-wizard-step="4">
           <div class="section-head"><div><span class="step">05</span><h2>Client-selected products</h2></div><span class="pill neutral">Allowances</span></div>
           <p class="section-copy">Keep product quality separate from labour. Enter the amount you expect to spend on the selected sanitary products.</p>
           <div class="form-grid two">
@@ -157,7 +165,7 @@
 
         
 
-        <section class="panel">
+        <section class="panel wizard-step" data-wizard-step="5">
           <div class="section-head"><div><span class="step">07</span><h2>Inspection confidence</h2></div></div>
           <div class="toggle-grid">
             <label class="toggle"><input class="confidence" type="checkbox" /><span>Measurements confirmed</span></label>
@@ -168,6 +176,17 @@
             <label class="toggle"><input class="confidence" type="checkbox" /><span>VAT treatment verified</span></label>
           </div>
         </section>
+
+        <section id="wizardReview" class="panel wizard-review" data-wizard-step="6">
+          <p class="eyebrow">Final step</p>
+          <h2>Review your estimate</h2>
+          <p class="section-copy">Check the scope and final client price below. You can go back to change any answer before saving or creating the offerte.</p>
+        </section>
+
+        <div class="wizard-nav">
+          <button id="wizardBackBtn" class="btn btn-secondary" type="button">Back</button>
+          <button id="wizardNextBtn" class="btn btn-primary" type="button">Next</button>
+        </div>
       </div>
 
       <aside class="summary-column">
@@ -194,7 +213,7 @@
           <div class="summary-actions">
             <button id="summaryClientBtn" class="btn btn-secondary" type="button">Show client</button>
             <button id="offerteBtn" class="btn btn-secondary" type="button">Create offerte</button>
-            <button id="saveBtnMobile" class="btn btn-primary" type="button">Save version</button>
+            <button id="saveBtnMobile" class="btn btn-primary" type="button">Save calculation</button>
           </div>
           <p class="fine-print">Inspection estimate. Hidden defects, final product choices and unconfirmed technical conditions can change the formal quotation.</p>
         </section>
