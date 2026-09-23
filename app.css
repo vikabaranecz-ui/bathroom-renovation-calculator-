@@ -1023,3 +1023,6 @@ body.wizard-final .breakdown-row{
   .wizard-question-title{font-size:17px}
   .wizard-group-nav{margin-left:-2px;margin-right:-2px}
 }
+
+#wizardReview,
+.wizard-nav{display:none!important}
