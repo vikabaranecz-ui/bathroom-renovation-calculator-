@@ -795,45 +795,103 @@
   }
 
 
-  const WIZARD_STEPS = [
-    'Client & project',
-    'Room measurements',
-    'Demolition & preparation',
-    'Plumbing & fixtures',
-    'Client-selected products',
-    'Inspection check',
-    'Review & price'
-  ];
+  let wizardQuestions = [];
 
-  function setWizardStep(index, options) {
-    const opts=options||{};
-    const max=WIZARD_STEPS.length-1;
-    state.wizardStep=Math.max(0,Math.min(max,Number(index)||0));
-    document.querySelectorAll('[data-wizard-step]').forEach((el)=>{
-      el.classList.toggle('is-active',Number(el.getAttribute('data-wizard-step'))===state.wizardStep);
+  function questionText(label) {
+    const toggleText = label.querySelector('.toggle span, span');
+    if (label.classList.contains('toggle') && toggleText) return toggleText.textContent.trim();
+
+    const clone = label.cloneNode(true);
+    clone.querySelectorAll('input,select,textarea,span').forEach((node)=>node.remove());
+    return clone.textContent.replace(/\s+/g,' ').trim() || 'Question';
+  }
+
+  function questionSection(label) {
+    const panel = label.closest('.wizard-step');
+    const heading = panel ? panel.querySelector('h2') : null;
+    return heading ? heading.textContent.trim() : '';
+  }
+
+  function buildQuestionFlow() {
+    wizardQuestions = Array.from(document.querySelectorAll('.wizard-step label'))
+      .filter((label)=>!label.closest('[hidden]'));
+
+    wizardQuestions.forEach((label,index)=>{
+      label.classList.add('question-item');
+      label.setAttribute('data-question-index',String(index));
     });
-    byId('wizardStepLabel').textContent='Step '+(state.wizardStep+1)+' of '+WIZARD_STEPS.length;
-    byId('wizardStepTitle').textContent=WIZARD_STEPS[state.wizardStep];
-    byId('wizardProgressBar').style.width=(((state.wizardStep+1)/WIZARD_STEPS.length)*100)+'%';
-    byId('wizardBackBtn').disabled=state.wizardStep===0;
-    byId('wizardNextBtn').textContent=state.wizardStep===max?'Done':'Next';
-    document.body.classList.toggle('wizard-final',state.wizardStep===max);
+  }
+
+  function setQuestion(index, options) {
+    const opts=options||{};
+    const total=wizardQuestions.length;
+    const reviewIndex=total;
+    state.wizardStep=Math.max(0,Math.min(reviewIndex,Number(index)||0));
+
+    document.querySelectorAll('.wizard-step').forEach((panel)=>panel.classList.remove('is-active'));
+    document.querySelectorAll('.question-item').forEach((label)=>label.classList.remove('question-active'));
+    byId('wizardReview').classList.remove('is-active');
+
+    const final=state.wizardStep===reviewIndex;
+    document.body.classList.toggle('wizard-final',final);
+
+    if(final){
+      byId('wizardReview').classList.add('is-active');
+      byId('wizardStepLabel').textContent='Review';
+      byId('wizardStepTitle').textContent='Review & estimated client price';
+      byId('wizardProgressBar').style.width='100%';
+      byId('wizardBackBtn').disabled=total===0;
+      byId('wizardNextBtn').textContent='Done';
+    }else{
+      const current=wizardQuestions[state.wizardStep];
+      const panel=current.closest('.wizard-step');
+      panel.classList.add('is-active');
+      current.classList.add('question-active');
+
+      byId('wizardStepLabel').textContent='Question '+(state.wizardStep+1)+' of '+total;
+      byId('wizardStepTitle').textContent=questionText(current);
+
+      const sectionTitle=questionSection(current);
+      const head=panel.querySelector('.section-head h2');
+      if(head && sectionTitle) head.textContent=sectionTitle;
+
+      byId('wizardProgressBar').style.width=(((state.wizardStep+1)/(total+1))*100)+'%';
+      byId('wizardBackBtn').disabled=state.wizardStep===0;
+      byId('wizardNextBtn').textContent='Next';
+
+      const focusable=current.querySelector('input,select,textarea');
+      if(focusable && !opts.noFocus){
+        window.setTimeout(()=>focusable.focus({preventScroll:true}),120);
+      }
+    }
+
     if(!opts.noScroll){
       const target=byId('wizardStepLabel');
       if(target) target.scrollIntoView({behavior:'smooth',block:'start'});
     }
   }
 
+  function setWizardStep(index, options) {
+    if(!wizardQuestions.length) buildQuestionFlow();
+    if(Number(index)>=6){
+      setQuestion(wizardQuestions.length,options);
+    }else{
+      setQuestion(0,options);
+    }
+  }
+
   function wizardNext(){
-    if(state.wizardStep<WIZARD_STEPS.length-1){
-      setWizardStep(state.wizardStep+1);
+    if(!wizardQuestions.length) buildQuestionFlow();
+    if(state.wizardStep<wizardQuestions.length){
+      setQuestion(state.wizardStep+1);
     }else{
       window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
     }
   }
 
   function wizardBack(){
-    if(state.wizardStep>0) setWizardStep(state.wizardStep-1);
+    if(!wizardQuestions.length) buildQuestionFlow();
+    if(state.wizardStep>0) setQuestion(state.wizardStep-1);
   }
 
   function resetEstimate() {
@@ -885,7 +943,8 @@
     state.dirty=false;
     state.lastSavedAt=null;
     setSync('New calculation');
-    setWizardStep(0,{noScroll:true});
+    if(!wizardQuestions.length) buildQuestionFlow();
+    setQuestion(0,{noScroll:true,noFocus:true});
     toast('New calculation started.');
   }
 
@@ -2013,7 +2072,8 @@
     document.querySelectorAll('input[type="number"]').forEach((el) => el.setAttribute('inputmode', 'decimal'));
     syncPricingInputs();
     calculate();
-    setWizardStep(0,{noScroll:true});
+    buildQuestionFlow();
+    setQuestion(0,{noScroll:true,noFocus:true});
     const restored = await restoreSession();
     if (restored) await enterApp();
   }
