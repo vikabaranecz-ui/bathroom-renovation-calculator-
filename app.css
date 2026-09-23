@@ -670,3 +670,41 @@ input:focus,select:focus,textarea:focus{
   .delete-calculation-btn{width:auto}
   .delete-calculation-zone p{margin:7px 0 0}
 }
+
+/* Project-first workflow */
+.projects-dialog{
+  position:fixed!important; inset:0!important; width:100%!important; height:100%!important;
+  max-height:none!important; border:0!important; border-radius:0!important;
+  padding:clamp(18px,3vw,38px)!important; background:#f5f7fa!important;
+}
+#projectsModal .modal-backdrop{display:none}
+.projects-home-head{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:20px;
+  max-width:1120px;margin:0 auto 22px
+}
+.projects-home-head h2{font-size:30px;margin:2px 0 4px;letter-spacing:-.035em}
+.projects-home-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.projects-toolbar,.projects-list{max-width:1120px;margin-left:auto;margin-right:auto}
+.projects-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.project-card{min-height:150px;align-items:end}
+.project-card .project-actions{align-items:flex-end}
+.project-card .btn{min-width:128px}
+.settings-dialog{
+  position:relative;z-index:1;width:min(1040px,100%);max-height:90vh;overflow:auto;
+  background:#fff;border:1px solid var(--line);border-radius:24px;padding:22px;box-shadow:var(--shadow-lg)
+}
+.settings-card{border:1px solid var(--line);border-radius:18px;padding:18px;margin-top:14px;background:#fff}
+.settings-card h3{margin:0;font-size:14px}
+.settings-actions{display:flex;justify-content:flex-end;margin-top:16px}
+.summary-actions{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+.sync-status.unsaved{background:#fff7ed;color:#9a3412;border-color:#fed7aa}
+.sync-status.saved{background:#f0fdf4;color:#166534;border-color:#bbf7d0}
+@media(max-width:720px){
+  .projects-dialog{padding:18px 12px calc(90px + env(safe-area-inset-bottom))!important}
+  .projects-home-head{display:block}
+  .projects-home-actions{margin-top:14px;justify-content:stretch;display:grid;grid-template-columns:1fr 1fr}
+  .projects-home-actions #projectsCloseBtn{grid-column:1/-1}
+  .projects-list{grid-template-columns:1fr}
+  .settings-dialog{position:fixed;inset:0;width:100%;height:100%;max-height:none;border:0;border-radius:0;padding:14px 12px calc(18px + env(safe-area-inset-bottom))}
+  .summary-actions{grid-template-columns:1fr!important}
+}
