@@ -1543,7 +1543,7 @@
           '<div class="project-address">' + escapeHtml(address) + '</div>' +
           '<div class="project-meta">' +
             (updatedText ? '<span>Updated ' + escapeHtml(updatedText) + '</span>' : '') +
-            '<span>' + versions + (versions === 1 ? ' calculation' : ' calculations') + '</span>' +
+            '<span>' + versions + (versions === 1 ? ' saved version' : ' saved versions') + '</span>' +
           '</div>' +
         '</div>' +
         '<div class="project-actions">' +
@@ -1855,6 +1855,14 @@
     byId('sendOfferteBtn').addEventListener('click', sendCurrentOfferte);
     document.querySelectorAll('[data-offerte-close]').forEach((el)=>el.addEventListener('click',closeOfferteModal));
 
+    byId('projectCalculationsTab').addEventListener('click', () => {
+      const target=byId('versionsList');
+      if(target) target.scrollIntoView({behavior:'smooth',block:'start'});
+    });
+    byId('projectOffertesTab').addEventListener('click', () => {
+      const target=byId('projectOffertesList');
+      if(target) target.scrollIntoView({behavior:'smooth',block:'start'});
+    });
     byId('projectPhotosBtn').addEventListener('click', async () => {
       closeVersions();
       await openGallery();
