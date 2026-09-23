@@ -41,7 +41,8 @@
         <button id="clientViewBtn" class="btn btn-ghost" type="button">Client view</button>
         <button id="newBtn" class="btn btn-secondary" type="button">New</button>
         <button id="projectsBtn" class="btn btn-secondary" type="button">Projects</button>
-        <button id="topOfferteBtn" class="btn btn-secondary" type="button">Offerte</button>
+        <button id="topOffersBtn" class="btn btn-secondary" type="button">Offers</button>
+        <button id="topOfferteBtn" class="btn btn-secondary" type="button">New offerte</button>
         <button id="settingsBtn" class="btn btn-ghost" type="button">Settings</button>
         <button id="saveBtn" class="btn btn-primary" type="button">Save version</button>
         <button id="signOutBtn" class="btn btn-ghost" type="button">Sign out</button>
@@ -203,7 +204,7 @@
           <div id="breakdown" class="breakdown"></div>
         </section>
 
-        <section class="delete-calculation-zone internal-only">
+        <section class="delete-calculation-zone">
           <button id="deleteCalculationBtn" class="btn btn-danger delete-calculation-btn" type="button">Delete calculation</button>
           <p>This removes the currently opened saved calculation. The Project itself stays available.</p>
         </section>
@@ -318,6 +319,7 @@
         <div><p class="eyebrow">Home</p><h2 id="projectsTitle">Saved projects</h2><span id="projectsCount" class="muted">0 projects</span></div>
         <div class="projects-head-actions">
           <button id="projectsNewBtn" class="btn btn-primary compact" type="button">+ New calculation</button>
+          <button id="projectsOffersBtn" class="btn btn-secondary compact" type="button">Offers</button>
           <button id="projectsSettingsBtn" class="btn btn-secondary compact" type="button">Settings</button>
           <button id="projectsCloseBtn" class="btn btn-ghost compact" type="button">Close</button>
         </div>
@@ -346,6 +348,7 @@
         <button id="projectPhotosBtn" class="btn btn-secondary" type="button">Photos <span id="projectPhotoCount">0</span></button>
         <button id="projectOffertesTab" class="btn btn-secondary" type="button">Offertes</button>
         <button id="projectNewOfferteBtn" class="btn btn-primary" type="button">+ Nieuwe offerte</button>
+        <button id="projectDeleteCalculationBtn" class="btn btn-danger" type="button">Delete calculation</button>
       </div>
       <div class="project-section-head">
         <div><strong>Calculations</strong><span>Every saved version for this project</span></div>
@@ -355,6 +358,28 @@
         <div><strong>Offertes</strong><span>Saved Dutch PDF quotations</span></div>
       </div>
       <div id="projectOffertesList" class="offertes-list"><p class="muted">No offertes yet.</p></div>
+    </section>
+  </div>
+
+  <div id="offersModal" class="modal" hidden>
+    <div class="modal-backdrop" data-offers-close></div>
+    <section class="offers-dialog" role="dialog" aria-modal="true" aria-labelledby="offersTitle">
+      <div class="section-head gallery-head">
+        <div>
+          <p class="eyebrow">Sales documents</p>
+          <h2 id="offersTitle">Saved offers</h2>
+          <span id="offersCount" class="muted">0 offers</span>
+        </div>
+        <button id="offersCloseBtn" class="btn btn-ghost compact" type="button">Close</button>
+      </div>
+      <div class="projects-toolbar">
+        <label>Search offers
+          <input id="offersSearch" type="search" placeholder="Client, address, offer number…" autocomplete="off" />
+        </label>
+      </div>
+      <div id="allOffertesList" class="offers-list">
+        <div class="project-empty"><strong>No offers yet</strong><span>Create an offerte from a saved calculation and it will appear here.</span></div>
+      </div>
     </section>
   </div>
 
@@ -413,7 +438,7 @@
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js" defer></script>
+  <script src="./vendor/jspdf.umd.min.js" defer></script>
   <script src="./app.js" defer></script>
 </body>
 </html>
