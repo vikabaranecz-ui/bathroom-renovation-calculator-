@@ -43,7 +43,12 @@
     busy: false,
     galleryObjectUrls: [],
     historyRows: [],
-    projectsRows: []
+    projectsRows: [],
+    offerteProfileId: null,
+    offerteProfile: null,
+    currentOfferteId: null,
+    currentOfferteBlob: null,
+    currentOfferteFilename: null
   };
 
   const byId = (id) => document.getElementById(id);
@@ -694,7 +699,8 @@
       allowToilet: num('allowToilet'),
       allowVanity: num('allowVanity'),
       allowMechanical: num('allowMechanical'),
-      allowOther: num('allowOther')
+      allowOther: num('allowOther'),
+      clientEmail: byId('clientEmail').value.trim()
     };
   }
 
@@ -751,6 +757,7 @@
     setValue('allowVanity', selections.allowVanity);
     setValue('allowMechanical', selections.allowMechanical);
     setValue('allowOther', selections.allowOther);
+    setValue('clientEmail', selections.clientEmail || '');
 
     if (record.pricing_snapshot && Object.keys(record.pricing_snapshot).length) {
       state.pricing = Object.assign({}, DEFAULT_PRICING, record.pricing_snapshot);
@@ -779,6 +786,7 @@
     byId('galleryCount').textContent = '0';
     byId('clientName').value = '';
     byId('clientPhone').value = '';
+    byId('clientEmail').value = '';
     byId('projectAddress').value = '';
     byId('notes').value = '';
     setValue('length', 0);
@@ -1018,6 +1026,436 @@
 
 
 
+
+  const DUTCH_SCOPE = {
+    'Light demolition':'Lichte afbraakwerken',
+    'Full bathroom strip-out':'Volledige afbraak van de badkamer',
+    'Heavy demolition / difficult access':'Zware afbraakwerken / moeilijke toegang',
+    'Debris removal & disposal':'Afvoer en verwerking van bouwafval',
+    'Local substrate repairs':'Lokale herstellingen van de ondergrond',
+    'Major levelling / substrate repair':'Uitvlakking en uitgebreide herstelling van de ondergrond',
+    'Rebuild walls / floor base':'Heropbouw van wanden / vloeropbouw',
+    'Waterproofing system':'Plaatsing van waterdichtingssysteem',
+    'Floor tiling':'Plaatsing vloertegels',
+    'Wall tiling':'Plaatsing wandtegels',
+    'Mortex floor finish':'Mortex vloerafwerking',
+    'Mortex wall finish':'Mortex wandafwerking',
+    'Move water connections':'Verplaatsen van wateraansluitingen',
+    'Move drains':'Verplaatsen van afvoeren',
+    'Electrical work':'Elektriciteitswerken',
+    'Install walk-in shower':'Plaatsing inloopdouche',
+    'Install bathtub':'Plaatsing bad',
+    'Install toilet':'Plaatsing toilet',
+    'Install vanity & basin':'Plaatsing badkamermeubel en wastafel',
+    'Install towel radiator':'Plaatsing handdoekradiator',
+    'Mechanical ventilation':'Mechanische ventilatie',
+    'Ceiling repair / painting':'Herstelling en schilderwerken plafond',
+    'Electric floor heating':'Elektrische vloerverwarming'
+  };
+
+  function pdfEuro(value) {
+    return '€ ' + Number(value || 0).toLocaleString('nl-BE',{minimumFractionDigits:2,maximumFractionDigits:2}).replace(/\u00a0/g,' ');
+  }
+
+  function dutchDate(value) {
+    const d = value ? new Date(value) : new Date();
+    return new Intl.DateTimeFormat('nl-BE',{day:'2-digit',month:'2-digit',year:'numeric'}).format(d);
+  }
+
+  function isoDateAfterDays(days) {
+    const d = new Date();
+    d.setDate(d.getDate() + Math.max(1, Number(days) || 14));
+    return d.toISOString().slice(0,10);
+  }
+
+  async function loadOfferteProfile() {
+    const rows = await rest('bathroom_offerte_profiles?select=*&limit=1');
+    if (Array.isArray(rows) && rows[0]) {
+      state.offerteProfileId = rows[0].id;
+      state.offerteProfile = rows[0];
+    } else {
+      state.offerteProfileId = null;
+      state.offerteProfile = {
+        company_name:'Reno Rangers BV',
+        company_address:'',
+        company_postal_city:'',
+        vat_number:'',
+        email:'info@renorangers.be',
+        phone:'+32 465 88 39 19',
+        website:'renorangers.be',
+        iban:'',
+        validity_days:14,
+        payment_terms:'Volgens overeenkomst.'
+      };
+    }
+    return state.offerteProfile;
+  }
+
+  function fillOfferteProfileForm(profile) {
+    const p = profile || {};
+    setValue('companyName', p.company_name || '');
+    setValue('companyAddress', p.company_address || '');
+    setValue('companyPostalCity', p.company_postal_city || '');
+    setValue('companyVat', p.vat_number || '');
+    setValue('companyEmail', p.email || '');
+    setValue('companyPhone', p.phone || '');
+    setValue('companyWebsite', p.website || '');
+    setValue('companyIban', p.iban || '');
+    setValue('companyPaymentTerms', p.payment_terms || '');
+  }
+
+  function collectOfferteProfileForm() {
+    return {
+      company_name: byId('companyName').value.trim(),
+      company_address: byId('companyAddress').value.trim(),
+      company_postal_city: byId('companyPostalCity').value.trim(),
+      vat_number: byId('companyVat').value.trim(),
+      email: byId('companyEmail').value.trim(),
+      phone: byId('companyPhone').value.trim(),
+      website: byId('companyWebsite').value.trim(),
+      iban: byId('companyIban').value.trim(),
+      validity_days: state.offerteProfile && state.offerteProfile.validity_days ? state.offerteProfile.validity_days : 14,
+      payment_terms: byId('companyPaymentTerms').value.trim(),
+      updated_at: nowIso()
+    };
+  }
+
+  async function saveOfferteProfile() {
+    const userId = currentUserId();
+    if (!userId) throw new Error('Not signed in');
+    const payload = collectOfferteProfileForm();
+    payload.user_id = userId;
+
+    if (state.offerteProfileId) {
+      const rows = await rest('bathroom_offerte_profiles?id=eq.' + encodeURIComponent(state.offerteProfileId), {
+        method:'PATCH', body:payload, prefer:'return=representation'
+      });
+      if (Array.isArray(rows) && rows[0]) state.offerteProfile = rows[0];
+    } else {
+      const rows = await rest('bathroom_offerte_profiles', {
+        method:'POST', body:payload, prefer:'return=representation'
+      });
+      if (Array.isArray(rows) && rows[0]) {
+        state.offerteProfileId = rows[0].id;
+        state.offerteProfile = rows[0];
+      }
+    }
+    toast('Bedrijfsgegevens opgeslagen.');
+  }
+
+  async function suggestOfferteNumber() {
+    const year = new Date().getFullYear();
+    const rows = await rest('bathroom_offertes?select=offerte_number&offerte_number=like.OFF-' + year + '-*&order=created_at.desc');
+    let max = 0;
+    (Array.isArray(rows) ? rows : []).forEach((row) => {
+      const m = String(row.offerte_number || '').match(/OFF-\\d{4}-(\\d+)/);
+      if (m) max = Math.max(max, Number(m[1]) || 0);
+    });
+    return 'OFF-' + year + '-' + String(max + 1).padStart(3,'0');
+  }
+
+  async function openOfferteModal() {
+    try {
+      if (!state.estimateId || !state.projectId) {
+        toast('Project eerst opslaan…');
+        await saveEstimate();
+      }
+      if (!state.estimateId || !state.projectId) return;
+      if (!state.offerteProfile) await loadOfferteProfile();
+
+      fillOfferteProfileForm(state.offerteProfile);
+      byId('offerteNumber').value = await suggestOfferteNumber();
+      byId('offerteClientEmail').value = byId('clientEmail').value.trim();
+      const days = Number(state.offerteProfile.validity_days || 14);
+      byId('offerteValidityDate').value = isoDateAfterDays(days);
+      const label = byId('clientName').value.trim() || byId('projectAddress').value.trim() || 'Badkamerrenovatie';
+      byId('offerteProjectLabel').value = label;
+      byId('offerteProjectPreview').textContent = label;
+      byId('offerteTotalPreview').textContent = euro(state.lastResult ? state.lastResult.totalIncVat : 0);
+      state.currentOfferteId = null;
+      state.currentOfferteBlob = null;
+      state.currentOfferteFilename = null;
+      byId('offerteModal').hidden = false;
+    } catch (error) {
+      toast(error.message || 'Kon offerte niet openen.', 'error');
+    }
+  }
+
+  function closeOfferteModal() {
+    byId('offerteModal').hidden = true;
+  }
+
+  function addPdfWrappedText(doc, textValue, x, y, maxWidth, lineHeight) {
+    const lines = doc.splitTextToSize(String(textValue || ''), maxWidth);
+    doc.text(lines, x, y);
+    return y + lines.length * lineHeight;
+  }
+
+  function generateOffertePdfBlob() {
+    if (!window.jspdf || !window.jspdf.jsPDF) throw new Error('PDF module is nog niet geladen.');
+    const profile = collectOfferteProfileForm();
+    if (!profile.company_name) throw new Error('Vul eerst de bedrijfsnaam in.');
+    const result = state.lastResult || calculate();
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({unit:'mm',format:'a4'});
+    const pageW = 210, pageH = 297, m = 18;
+    let y = 20;
+
+    function pageBreak(required) {
+      if (y + required > pageH - 20) {
+        doc.addPage();
+        y = 20;
+      }
+    }
+
+    doc.setFillColor(15,23,42);
+    doc.rect(0,0,pageW,34,'F');
+    doc.setTextColor(255,255,255);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(18);
+    doc.text(profile.company_name, m, 18);
+    doc.setFontSize(9);
+    doc.setFont('helvetica','normal');
+    const contact = [profile.phone,profile.email,profile.website].filter(Boolean).join('  |  ');
+    if (contact) doc.text(contact,m,26);
+
+    doc.setTextColor(15,23,42);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(24);
+    doc.text('OFFERTE', pageW-m, 52, {align:'right'});
+    doc.setFontSize(10);
+    doc.setFont('helvetica','normal');
+    doc.text('Offertenummer: ' + byId('offerteNumber').value.trim(), pageW-m, 60, {align:'right'});
+    doc.text('Datum: ' + dutchDate(new Date()), pageW-m, 66, {align:'right'});
+    doc.text('Geldig tot: ' + dutchDate(byId('offerteValidityDate').value), pageW-m, 72, {align:'right'});
+
+    y = 48;
+    doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.text('Voor',m,y); y+=6;
+    doc.setFont('helvetica','normal'); doc.setFontSize(11);
+    doc.text(byId('clientName').value.trim() || 'Klant',m,y); y+=5;
+    if (byId('projectAddress').value.trim()) { doc.text(byId('projectAddress').value.trim(),m,y); y+=5; }
+    if (byId('offerteClientEmail').value.trim()) { doc.text(byId('offerteClientEmail').value.trim(),m,y); y+=5; }
+
+    y = 86;
+    doc.setDrawColor(226,232,240); doc.line(m,y,pageW-m,y); y+=10;
+    doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.text('Badkamerrenovatie',m,y); y+=8;
+    doc.setFont('helvetica','normal'); doc.setFontSize(10);
+    y = addPdfWrappedText(doc, byId('offerteIntro').value.trim(), m, y, pageW-2*m, 5) + 5;
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.text('Omschrijving van de werken',m,y); y+=7;
+    doc.setFont('helvetica','normal'); doc.setFontSize(10);
+    (result.lines || []).forEach((line) => {
+      pageBreak(10);
+      const title = DUTCH_SCOPE[line.name] || line.name;
+      doc.setFillColor(248,250,252);
+      doc.roundedRect(m,y-4,pageW-2*m,9,2,2,'F');
+      doc.setTextColor(15,23,42);
+      doc.text('- ' + title, m+3, y+1);
+      if (line.meta) {
+        doc.setTextColor(100,116,139);
+        doc.text(String(line.meta), pageW-m-3, y+1, {align:'right'});
+      }
+      y+=11;
+    });
+
+    pageBreak(50);
+    y+=3;
+    doc.setDrawColor(226,232,240); doc.line(m,y,pageW-m,y); y+=9;
+    const vatPct = Math.round((result.vatRate || 0)*100);
+    const vatAmount = result.totalIncVat - result.totalExVat;
+    const left = pageW - 83;
+    doc.setFontSize(10); doc.setTextColor(71,85,105);
+    doc.text('Totaal excl. btw',left,y); doc.setTextColor(15,23,42); doc.text(pdfEuro(result.totalExVat),pageW-m,y,{align:'right'}); y+=7;
+    doc.setTextColor(71,85,105); doc.text('Btw ' + vatPct + '%',left,y); doc.setTextColor(15,23,42); doc.text(pdfEuro(vatAmount),pageW-m,y,{align:'right'}); y+=9;
+    doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.text('Totaal incl. btw',left,y); doc.text(pdfEuro(result.totalIncVat),pageW-m,y,{align:'right'}); y+=13;
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.text('Voorwaarden',m,y); y+=7;
+    doc.setFont('helvetica','normal'); doc.setFontSize(9);
+    y = addPdfWrappedText(doc,
+      'Deze offerte is opgesteld op basis van de huidige inspectie en de op dit moment gekende omstandigheden. Verborgen gebreken, bijkomende technische vereisten of wijzigingen in materiaalkeuze kunnen aanleiding geven tot een aangepaste prijs.',
+      m,y,pageW-2*m,4.5)+4;
+    if (profile.payment_terms) {
+      y = addPdfWrappedText(doc,'Betalingsvoorwaarden: ' + profile.payment_terms,m,y,pageW-2*m,4.5)+4;
+    }
+    y = addPdfWrappedText(doc,'Deze offerte is geldig tot ' + dutchDate(byId('offerteValidityDate').value) + '.',m,y,pageW-2*m,4.5)+8;
+
+    pageBreak(30);
+    doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.text('Voor akkoord',m,y); y+=15;
+    doc.setDrawColor(148,163,184);
+    doc.line(m,y,m+70,y); doc.line(pageW-m-70,y,pageW-m,y);
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(100,116,139);
+    doc.text('Naam & datum',m,y+5); doc.text('Handtekening',pageW-m-70,y+5);
+
+    doc.setFontSize(8); doc.setTextColor(100,116,139);
+    const footer = [profile.company_address,profile.company_postal_city,profile.vat_number ? 'BTW ' + profile.vat_number : '',profile.iban ? 'IBAN ' + profile.iban : ''].filter(Boolean).join('  |  ');
+    if (footer) doc.text(footer,pageW/2,pageH-10,{align:'center'});
+
+    return doc.output('blob');
+  }
+
+  async function uploadPdfBlob(blob, storagePath) {
+    const token = await getValidToken();
+    const response = await fetch(
+      SUPABASE_URL + '/storage/v1/object/bathroom-offertes/' + encodeStoragePath(storagePath),
+      {
+        method:'POST',
+        headers:{
+          apikey:SUPABASE_KEY,
+          Authorization:'Bearer ' + token,
+          'Content-Type':'application/pdf',
+          'x-upsert':'false'
+        },
+        body:blob
+      }
+    );
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new Error('PDF upload failed: ' + (detail || response.status));
+    }
+  }
+
+  async function ensureSavedOfferte() {
+    if (state.currentOfferteId && state.currentOfferteBlob && state.currentOfferteFilename) {
+      const existing = await rest('bathroom_offertes?id=eq.' + encodeURIComponent(state.currentOfferteId) + '&select=*&limit=1');
+      if (Array.isArray(existing) && existing[0]) return existing[0];
+    }
+
+    await saveOfferteProfile();
+    const blob = generateOffertePdfBlob();
+    const userId = currentUserId();
+    const number = byId('offerteNumber').value.trim();
+    if (!number) throw new Error('Offertenummer ontbreekt.');
+    const filename = number.replace(/[^a-zA-Z0-9._-]/g,'-') + '.pdf';
+    const storagePath = userId + '/' + state.projectId + '/' + Date.now() + '-' + filename;
+    await uploadPdfBlob(blob,storagePath);
+
+    const validity = byId('offerteValidityDate').value || null;
+    const result = state.lastResult || calculate();
+    const rows = await rest('bathroom_offertes',{
+      method:'POST',
+      body:{
+        project_id:state.projectId,
+        estimate_id:state.estimateId,
+        user_id:userId,
+        offerte_number:number,
+        status:'draft',
+        client_name:byId('clientName').value.trim(),
+        client_email:byId('offerteClientEmail').value.trim(),
+        project_address:byId('projectAddress').value.trim(),
+        total_ex_vat:Number(result.totalExVat.toFixed(2)),
+        vat_rate:Number(result.vatRate.toFixed(4)),
+        total_inc_vat:Number(result.totalIncVat.toFixed(2)),
+        validity_date:validity,
+        storage_path:storagePath
+      },
+      prefer:'return=representation'
+    });
+    if (!Array.isArray(rows) || !rows[0]) throw new Error('Kon offerte niet opslaan.');
+    state.currentOfferteId = rows[0].id;
+    state.currentOfferteBlob = blob;
+    state.currentOfferteFilename = filename;
+    return rows[0];
+  }
+
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1500);
+  }
+
+  async function downloadCurrentOfferte() {
+    try {
+      setSync('Offerte maken','busy');
+      const row = await ensureSavedOfferte();
+      downloadBlob(state.currentOfferteBlob,state.currentOfferteFilename);
+      setSync('Synced');
+      toast('Offerte ' + row.offerte_number + ' opgeslagen en gedownload.');
+      await loadProjectOffertes(state.projectId);
+    } catch (error) {
+      setSync('Offerte failed','error');
+      toast(error.message || 'Kon offerte niet maken.','error');
+    }
+  }
+
+  async function sendCurrentOfferte() {
+    try {
+      setSync('Offerte maken','busy');
+      const row = await ensureSavedOfferte();
+      const file = new File([state.currentOfferteBlob], state.currentOfferteFilename, {type:'application/pdf'});
+      const subject = 'Offerte ' + row.offerte_number + ' - badkamerrenovatie';
+      const textBody = 'Beste ' + (byId('clientName').value.trim() || 'klant') + ',\n\nIn bijlage vindt u onze offerte voor de badkamerrenovatie.\n\nMet vriendelijke groeten,\n' + (byId('companyName').value.trim() || '');
+
+      if (navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))) {
+        await navigator.share({title:subject,text:textBody,files:[file]});
+      } else {
+        downloadBlob(state.currentOfferteBlob,state.currentOfferteFilename);
+        const email = byId('offerteClientEmail').value.trim();
+        window.location.href = 'mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(textBody + '\n\nDe PDF is gedownload en kan als bijlage worden toegevoegd.');
+      }
+
+      await rest('bathroom_offertes?id=eq.' + encodeURIComponent(row.id),{
+        method:'PATCH',
+        body:{status:'sent',sent_at:nowIso()},
+        prefer:'return=minimal'
+      });
+      setSync('Synced');
+      toast('Offerte gemarkeerd als verzonden.');
+      await loadProjectOffertes(state.projectId);
+    } catch (error) {
+      if (error && error.name === 'AbortError') {
+        setSync('Synced');
+        toast('Versturen geannuleerd.');
+      } else {
+        setSync('Offerte failed','error');
+        toast(error.message || 'Kon offerte niet versturen.','error');
+      }
+    }
+  }
+
+  async function downloadStoredOfferte(row) {
+    const token = await getValidToken();
+    const response = await fetch(SUPABASE_URL + '/storage/v1/object/bathroom-offertes/' + encodeStoragePath(row.storage_path),{
+      headers:{apikey:SUPABASE_KEY,Authorization:'Bearer ' + token}
+    });
+    if (!response.ok) throw new Error('Kon PDF niet laden.');
+    const blob = await response.blob();
+    downloadBlob(blob,row.offerte_number + '.pdf');
+  }
+
+  async function loadProjectOffertes(projectId) {
+    const list = byId('projectOffertesList');
+    if (!list) return;
+    try {
+      const rows = await rest(
+        'bathroom_offertes?project_id=eq.' + encodeURIComponent(projectId) +
+        '&select=*&order=created_at.desc'
+      );
+      const items = Array.isArray(rows) ? rows : [];
+      if (!items.length) {
+        list.innerHTML = '<p class="muted">Nog geen offertes voor dit project.</p>';
+        return;
+      }
+      list.innerHTML = items.map((row)=> {
+        const when = row.created_at ? dutchDate(row.created_at) : '';
+        return '<div class="offerte-row">' +
+          '<div><strong>' + escapeHtml(row.offerte_number) + '</strong><small>' + escapeHtml(when) + ' · ' + euro(Number(row.total_inc_vat||0)) + '</small></div>' +
+          '<div class="offerte-row-actions"><span class="offerte-status">' + escapeHtml(row.status) + '</span>' +
+          '<button class="btn btn-secondary compact" type="button" data-offerte-download="' + escapeHtml(row.id) + '">PDF</button></div>' +
+        '</div>';
+      }).join('');
+      list.querySelectorAll('[data-offerte-download]').forEach((button)=>{
+        button.addEventListener('click',async()=>{
+          const row = items.find((x)=>x.id===button.getAttribute('data-offerte-download'));
+          if (!row) return;
+          try { await downloadStoredOfferte(row); } catch(error){ toast(error.message || 'Kon PDF niet laden.','error'); }
+        });
+      });
+    } catch {
+      list.innerHTML = '<p class="muted">Kon offertes niet laden.</p>';
+    }
+  }
+
   function closeProjectsSpace() {
     byId('projectsModal').hidden = true;
   }
@@ -1146,6 +1584,7 @@
           (project.client_name || project.title || project.project_address || 'Bathroom project') :
           'Bathroom project';
         await openVersions(projectId, label);
+        await loadProjectOffertes(projectId);
       } else {
         toast('Project opened.');
       }
@@ -1177,6 +1616,7 @@
 
   async function openVersions(projectId, label) {
     byId('versionsProjectLabel').textContent = label || 'Project';
+    loadProjectOffertes(projectId);
     byId('versionsModal').hidden = false;
     const list = byId('versionsList');
     list.innerHTML = '<div class="gallery-loading">Loading calculations…</div>';
@@ -1242,6 +1682,7 @@
     try {
       await loadPricing();
       await loadRecent();
+      await loadOfferteProfile();
       calculate();
     } catch (error) {
       setSync('Sync issue', 'error');
@@ -1310,7 +1751,7 @@
     });
     byId('refreshBtn').addEventListener('click', loadRecent);
     byId('historySearch').addEventListener('input', filterHistory);
-    byId('printBtn').addEventListener('click', () => window.print());
+    byId('offerteBtn').addEventListener('click', openOfferteModal);
     byId('galleryBtn').addEventListener('click', openGallery);
     byId('mobileProjectBtn').addEventListener('click', openProjectsSpace);
     byId('projectsBtn').addEventListener('click', openProjectsSpace);
@@ -1340,6 +1781,18 @@
     byId('versionsCloseBtn').addEventListener('click', closeVersions);
     byId('projectsCloseBtn').addEventListener('click', closeProjectsSpace);
     byId('projectsSearch').addEventListener('input', filterProjects);
+    byId('projectNewOfferteBtn').addEventListener('click', () => {
+      closeVersions();
+      openOfferteModal();
+    });
+    byId('offerteCloseBtn').addEventListener('click', closeOfferteModal);
+    byId('saveOfferteProfileBtn').addEventListener('click', async () => {
+      try { await saveOfferteProfile(); } catch(error){ toast(error.message || 'Kon bedrijfsgegevens niet opslaan.','error'); }
+    });
+    byId('downloadOfferteBtn').addEventListener('click', downloadCurrentOfferte);
+    byId('sendOfferteBtn').addEventListener('click', sendCurrentOfferte);
+    document.querySelectorAll('[data-offerte-close]').forEach((el)=>el.addEventListener('click',closeOfferteModal));
+
     byId('projectPhotosBtn').addEventListener('click', async () => {
       closeVersions();
       await openGallery();

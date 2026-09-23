@@ -56,6 +56,7 @@
           <div class="form-grid three">
             <label>Client name<input id="clientName" type="text" placeholder="Client name" /></label>
             <label>Phone<input id="clientPhone" type="tel" placeholder="+32 ..." /></label>
+            <label>Email<input id="clientEmail" type="email" placeholder="client@email.be" /></label>
             <label>Project address<input id="projectAddress" type="text" placeholder="Street, city" /></label>
           </div>
           <label class="wide-label">Inspection notes<textarea id="notes" rows="2" placeholder="Access, existing problems, client wishes, hidden-risk notes…"></textarea></label>
@@ -237,7 +238,7 @@
             <div><span>Actual margin</span><strong id="actualMargin">0%</strong></div>
           </div>
           <div class="summary-actions">
-            <button id="printBtn" class="btn btn-secondary" type="button">Print summary</button>
+            <button id="offerteBtn" class="btn btn-secondary" type="button">Offerte PDF</button>
             <button id="galleryBtn" class="btn btn-secondary" type="button">Gallery <span id="galleryCount">0</span></button>
             <button id="saveBtnMobile" class="btn btn-primary" type="button">Save</button>
           </div>
@@ -309,11 +310,65 @@
       </div>
       <div class="project-hub-actions">
         <button id="projectPhotosBtn" class="btn btn-secondary" type="button">Photos <span id="projectPhotoCount">0</span></button>
+        <button id="projectNewOfferteBtn" class="btn btn-primary" type="button">Nieuwe offerte</button>
       </div>
       <div class="project-section-head">
         <div><strong>Calculations</strong><span>Every saved version for this project</span></div>
       </div>
       <div id="versionsList" class="versions-list"><p class="muted">No saved calculations yet.</p></div>
+      <div class="project-section-head">
+        <div><strong>Offertes</strong><span>Saved Dutch PDF quotations</span></div>
+      </div>
+      <div id="projectOffertesList" class="offertes-list"><p class="muted">No offertes yet.</p></div>
+    </section>
+  </div>
+
+  <div id="offerteModal" class="modal" hidden>
+    <div class="modal-backdrop" data-offerte-close></div>
+    <section class="offerte-dialog" role="dialog" aria-modal="true" aria-labelledby="offerteTitle">
+      <div class="section-head gallery-head">
+        <div><h2 id="offerteTitle">Nederlandse offerte</h2><span class="muted">Professionele PDF voor de klant</span></div>
+        <button id="offerteCloseBtn" class="btn btn-ghost compact" type="button">Close</button>
+      </div>
+
+      <div class="offerte-grid">
+        <section class="offerte-card">
+          <h3>Klant & offerte</h3>
+          <div class="form-grid two">
+            <label>Offertenummer<input id="offerteNumber" type="text" /></label>
+            <label>Klant e-mail<input id="offerteClientEmail" type="email" placeholder="client@email.be" /></label>
+            <label>Geldig tot<input id="offerteValidityDate" type="date" /></label>
+            <label>Project<input id="offerteProjectLabel" type="text" readonly /></label>
+          </div>
+          <label class="wide-label">Introductie<textarea id="offerteIntro" rows="3">Bedankt voor uw interesse. Op basis van de besproken werken bezorgen wij u graag onderstaande offerte voor de renovatie van uw badkamer.</textarea></label>
+        </section>
+
+        <section class="offerte-card">
+          <div class="section-head"><div><h3>Bedrijfsgegevens</h3></div><button id="saveOfferteProfileBtn" class="btn btn-secondary compact" type="button">Opslaan</button></div>
+          <div class="form-grid two">
+            <label>Bedrijfsnaam<input id="companyName" type="text" /></label>
+            <label>BTW-nummer<input id="companyVat" type="text" placeholder="BE..." /></label>
+            <label>Adres<input id="companyAddress" type="text" /></label>
+            <label>Postcode & gemeente<input id="companyPostalCity" type="text" /></label>
+            <label>E-mail<input id="companyEmail" type="email" /></label>
+            <label>Telefoon<input id="companyPhone" type="tel" /></label>
+            <label>Website<input id="companyWebsite" type="text" /></label>
+            <label>IBAN<input id="companyIban" type="text" /></label>
+          </div>
+          <label class="wide-label">Betalingsvoorwaarden<textarea id="companyPaymentTerms" rows="2" placeholder="Bijv. volgens overeenkomst"></textarea></label>
+        </section>
+      </div>
+
+      <div class="offerte-preview-strip">
+        <div><span>Totaal incl. btw</span><strong id="offerteTotalPreview">€0</strong></div>
+        <div><span>Project</span><strong id="offerteProjectPreview">-</strong></div>
+      </div>
+
+      <div class="offerte-actions">
+        <button id="downloadOfferteBtn" class="btn btn-secondary" type="button">PDF maken & downloaden</button>
+        <button id="sendOfferteBtn" class="btn btn-primary" type="button">PDF versturen</button>
+      </div>
+      <p class="fine-print">De PDF wordt privé opgeslagen bij dit project. Op mobiel opent Versturen het deelmenu met de PDF als bijlage.</p>
     </section>
   </div>
 
@@ -336,6 +391,7 @@
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js" defer></script>
   <script src="./app.js" defer></script>
 </body>
 </html>
