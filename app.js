@@ -1638,7 +1638,10 @@
   }
 
 
-  function closeOffersSpace(){ byId('offersModal').hidden=true; }
+  function closeOffersSpace(){
+    byId('offersModal').hidden=true;
+    setMobileNavActive('calculator');
+  }
 
   function renderAllOffertes(rows){
     const list=byId('allOffertesList');
@@ -1677,6 +1680,8 @@
   }
 
   async function openOffersSpace(){
+    closeAppSpaces();
+    setMobileNavActive('offers');
     byId('offersModal').hidden=false;
     byId('offersSearch').value='';
     byId('allOffertesList').innerHTML='<div class="gallery-loading">Loading offers…</div>';
@@ -1769,6 +1774,7 @@
 
   function closeSettings() {
     byId('settingsModal').hidden=true;
+    setMobileNavActive('calculator');
   }
 
   function closeProjectsSpace() {
