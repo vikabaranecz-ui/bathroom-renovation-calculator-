@@ -1456,6 +1456,43 @@
     }
   }
 
+
+  async function deleteCurrentCalculation() {
+    if (!state.estimateId) {
+      toast('This calculation has not been saved yet.', 'error');
+      return;
+    }
+
+    const client = byId('clientName').value.trim() || 'this client';
+    const amount = state.lastResult ? euro(state.lastResult.totalIncVat) : '';
+    const message = 'Delete the saved calculation for ' + client + (amount ? ' (' + amount + ')' : '') + '?\n\nThe Project will remain, but this calculation and its linked calculation history will be removed.';
+    if (!window.confirm(message)) return;
+
+    const estimateId = state.estimateId;
+    const projectId = state.projectId;
+
+    try {
+      setSync('Deleting', 'busy');
+      await rest('bathroom_estimates?id=eq.' + encodeURIComponent(estimateId), {
+        method: 'DELETE',
+        prefer: 'return=minimal'
+      });
+
+      state.estimateId = null;
+      state.projectId = projectId;
+      byId('estimateState').textContent = 'New calculation';
+      await loadRecent();
+      try { await loadProjectsSpace(); } catch {}
+      setSync('Synced');
+      toast('Calculation deleted. Project kept.');
+      resetEstimate();
+      state.projectId = projectId;
+    } catch (error) {
+      setSync('Delete failed', 'error');
+      toast('Delete failed: ' + (error.message || 'Could not delete calculation.'), 'error');
+    }
+  }
+
   function closeProjectsSpace() {
     byId('projectsModal').hidden = true;
   }
@@ -1751,6 +1788,7 @@
     });
     byId('refreshBtn').addEventListener('click', loadRecent);
     byId('historySearch').addEventListener('input', filterHistory);
+    byId('deleteCalculationBtn').addEventListener('click', deleteCurrentCalculation);
     byId('offerteBtn').addEventListener('click', openOfferteModal);
     byId('galleryBtn').addEventListener('click', openGallery);
     byId('mobileProjectBtn').addEventListener('click', openProjectsSpace);
