@@ -41,7 +41,9 @@
         <button id="clientViewBtn" class="btn btn-ghost" type="button">Client view</button>
         <button id="newBtn" class="btn btn-secondary" type="button">New</button>
         <button id="projectsBtn" class="btn btn-secondary" type="button">Projects</button>
-        <button id="saveBtn" class="btn btn-primary" type="button">Save estimate</button>
+        <button id="topOfferteBtn" class="btn btn-secondary" type="button">Offerte</button>
+        <button id="settingsBtn" class="btn btn-ghost" type="button">Settings</button>
+        <button id="saveBtn" class="btn btn-primary" type="button">Save version</button>
         <button id="signOutBtn" class="btn btn-ghost" type="button">Sign out</button>
       </div>
     </header>
@@ -152,8 +154,89 @@
           </div>
         </section>
 
-        <section class="panel internal-only">
-          <div class="section-head"><div><span class="step">06</span><h2>Pricing model</h2></div><button id="saveRatesBtn" class="btn btn-secondary compact" type="button">Save rates</button></div>
+        
+
+        <section class="panel">
+          <div class="section-head"><div><span class="step">07</span><h2>Inspection confidence</h2></div></div>
+          <div class="toggle-grid">
+            <label class="toggle"><input class="confidence" type="checkbox" /><span>Measurements confirmed</span></label>
+            <label class="toggle"><input class="confidence" type="checkbox" /><span>Water / drain route inspected</span></label>
+            <label class="toggle"><input class="confidence" type="checkbox" /><span>Substrate condition known</span></label>
+            <label class="toggle"><input class="confidence" type="checkbox" /><span>Electrical scope confirmed</span></label>
+            <label class="toggle"><input class="confidence" type="checkbox" /><span>Product allowances agreed</span></label>
+            <label class="toggle"><input class="confidence" type="checkbox" /><span>VAT treatment verified</span></label>
+          </div>
+        </section>
+      </div>
+
+      <aside class="summary-column">
+        <section class="summary-card">
+          <div class="summary-top">
+            <div><small>Estimated client price</small><div id="totalIncVat" class="hero-price">€0</div><span id="totalExVat">€0 excl. VAT</span></div>
+            <span id="confidenceBadge" class="confidence-badge">Preliminary</span>
+          </div>
+          <div class="client-summary">
+            <div><span>Bathroom</span><strong id="summarySize">0.0 m²</strong></div>
+            <div><span>Estimated worker-hours</span><strong id="summaryHours">0 h</strong></div>
+            <div><span>Products allowance</span><strong id="summaryProducts">€0</strong></div>
+          </div>
+          <div class="internal-summary internal-only">
+            <div><span>Labour cost</span><strong id="laborCost">€0</strong></div>
+            <div><span>Construction materials</span><strong id="constructionMaterials">€0</strong></div>
+            <div><span>Product cost</span><strong id="productCost">€0</strong></div>
+            <div><span>Overhead allocation</span><strong id="overheadCost">€0</strong></div>
+            <div><span>Risk reserve</span><strong id="riskCost">€0</strong></div>
+            <div class="total-line"><span>Internal cost basis</span><strong id="costBasis">€0</strong></div>
+            <div><span>Gross contribution</span><strong id="grossContribution">€0</strong></div>
+            <div><span>Actual margin</span><strong id="actualMargin">0%</strong></div>
+          </div>
+          <div class="summary-actions">
+            <button id="summaryClientBtn" class="btn btn-secondary" type="button">Show client</button>
+            <button id="offerteBtn" class="btn btn-secondary" type="button">Create offerte</button>
+            <button id="saveBtnMobile" class="btn btn-primary" type="button">Save version</button>
+          </div>
+          <p class="fine-print">Inspection estimate. Hidden defects, final product choices and unconfirmed technical conditions can change the formal quotation.</p>
+        </section>
+
+        <section class="panel breakdown-panel">
+          <div class="section-head"><div><h2>Scope breakdown</h2></div></div>
+          <div id="breakdown" class="breakdown"></div>
+        </section>
+
+        <section class="delete-calculation-zone internal-only">
+          <button id="deleteCalculationBtn" class="btn btn-danger delete-calculation-btn" type="button">Delete calculation</button>
+          <p>This removes the currently opened saved calculation. The Project itself stays available.</p>
+        </section>
+      </aside>
+    </main>
+
+    <nav class="mobile-dock" aria-label="Mobile calculator actions">
+      <button id="mobileNewBtn" class="mobile-dock-btn" type="button">
+        <span class="dock-icon">＋</span><span>New</span>
+      </button>
+      <button id="mobileProjectBtn" class="mobile-dock-btn" type="button">
+        <span class="dock-icon">▧</span><span>Projects</span>
+      </button>
+      <button id="mobileOfferteBtn" class="mobile-dock-btn" type="button">
+        <span class="dock-icon">▤</span><span>Offerte</span>
+      </button>
+      <button id="mobileSaveBtn" class="mobile-dock-btn mobile-save" type="button">
+        <span class="dock-icon">✓</span><span>Save</span>
+      </button>
+    </nav>
+  </div>
+
+
+  <div id="settingsModal" class="modal" hidden>
+    <div class="modal-backdrop" data-settings-close></div>
+    <section class="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div class="section-head settings-head">
+        <div><p class="eyebrow">Company configuration</p><h2 id="settingsTitle">Settings</h2><span class="muted">Pricing rules and offerte profile are saved once and reused for every project.</span></div>
+        <button id="settingsCloseBtn" class="btn btn-ghost compact" type="button">Close</button>
+      </div>
+      <div class="settings-stack">
+        <section class="settings-card">
+          <div class="section-head"><div><h2>Pricing model</h2></div><button id="saveRatesBtn" class="btn btn-secondary compact" type="button">Save rates</button></div>
           <div class="form-grid four">
             <label>Loaded labour <span>€/worker-h</span><input data-price="laborRate" type="number" min="0" step="1" /></label>
             <label>Overhead <span>%</span><input data-price="overheadPct" type="number" min="0" max="100" step="1" /></label>
@@ -202,97 +285,34 @@
           </details>
           <p class="fine-print">Use your real loaded labour cost, not only the worker's wage. A 35% margin means selling price = cost ÷ 0.65, not cost + 35%.</p>
         </section>
-
-        <section class="panel">
-          <div class="section-head"><div><span class="step">07</span><h2>Inspection confidence</h2></div></div>
-          <div class="toggle-grid">
-            <label class="toggle"><input class="confidence" type="checkbox" /><span>Measurements confirmed</span></label>
-            <label class="toggle"><input class="confidence" type="checkbox" /><span>Water / drain route inspected</span></label>
-            <label class="toggle"><input class="confidence" type="checkbox" /><span>Substrate condition known</span></label>
-            <label class="toggle"><input class="confidence" type="checkbox" /><span>Electrical scope confirmed</span></label>
-            <label class="toggle"><input class="confidence" type="checkbox" /><span>Product allowances agreed</span></label>
-            <label class="toggle"><input class="confidence" type="checkbox" /><span>VAT treatment verified</span></label>
+        <section class="settings-card">
+          <div class="section-head"><div><h3>Bedrijfsgegevens</h3></div><button id="saveOfferteProfileBtn" class="btn btn-secondary compact" type="button">Opslaan</button></div>
+          <div class="form-grid two">
+            <label>Bedrijfsnaam<input id="companyName" type="text" /></label>
+            <label>BTW-nummer<input id="companyVat" type="text" placeholder="BE..." /></label>
+            <label>Adres<input id="companyAddress" type="text" /></label>
+            <label>Postcode & gemeente<input id="companyPostalCity" type="text" /></label>
+            <label>E-mail<input id="companyEmail" type="email" /></label>
+            <label>Telefoon<input id="companyPhone" type="tel" /></label>
+            <label>Website<input id="companyWebsite" type="text" /></label>
+            <label>IBAN<input id="companyIban" type="text" /></label>
           </div>
+          <label class="wide-label">Betalingsvoorwaarden<textarea id="companyPaymentTerms" rows="2" placeholder="Bijv. volgens overeenkomst"></textarea></label>
         </section>
       </div>
-
-      <aside class="summary-column">
-        <section class="summary-card">
-          <div class="summary-top">
-            <div><small>Estimated client price</small><div id="totalIncVat" class="hero-price">€0</div><span id="totalExVat">€0 excl. VAT</span></div>
-            <span id="confidenceBadge" class="confidence-badge">Preliminary</span>
-          </div>
-          <div class="client-summary">
-            <div><span>Bathroom</span><strong id="summarySize">0.0 m²</strong></div>
-            <div><span>Estimated worker-hours</span><strong id="summaryHours">0 h</strong></div>
-            <div><span>Products allowance</span><strong id="summaryProducts">€0</strong></div>
-          </div>
-          <div class="internal-summary internal-only">
-            <div><span>Labour cost</span><strong id="laborCost">€0</strong></div>
-            <div><span>Construction materials</span><strong id="constructionMaterials">€0</strong></div>
-            <div><span>Product cost</span><strong id="productCost">€0</strong></div>
-            <div><span>Overhead allocation</span><strong id="overheadCost">€0</strong></div>
-            <div><span>Risk reserve</span><strong id="riskCost">€0</strong></div>
-            <div class="total-line"><span>Internal cost basis</span><strong id="costBasis">€0</strong></div>
-            <div><span>Gross contribution</span><strong id="grossContribution">€0</strong></div>
-            <div><span>Actual margin</span><strong id="actualMargin">0%</strong></div>
-          </div>
-          <div class="summary-actions">
-            <button id="offerteBtn" class="btn btn-secondary" type="button">Offerte PDF</button>
-            <button id="galleryBtn" class="btn btn-secondary" type="button">Gallery <span id="galleryCount">0</span></button>
-            <button id="saveBtnMobile" class="btn btn-primary" type="button">Save</button>
-          </div>
-          <p class="fine-print">Inspection estimate. Hidden defects, final product choices and unconfirmed technical conditions can change the formal quotation.</p>
-        </section>
-
-        <section class="panel breakdown-panel">
-          <div class="section-head"><div><h2>Scope breakdown</h2></div></div>
-          <div id="breakdown" class="breakdown"></div>
-        </section>
-
-        <section class="panel internal-only history-panel">
-          <div class="section-head">
-            <div><h2>Calculation history</h2><span id="historyCount" class="pill neutral">0 saved</span></div>
-            <button id="refreshBtn" class="btn btn-ghost compact" type="button">Refresh</button>
-          </div>
-          <div class="history-toolbar">
-            <label class="history-search">
-              Search calculations
-              <input id="historySearch" type="search" placeholder="Client, address, date or amount…" autocomplete="off" />
-            </label>
-          </div>
-          <div id="recentList" class="recent-list"><p class="muted">No saved calculations yet.</p></div>
-        </section>
-
-        <section class="delete-calculation-zone internal-only">
-          <button id="deleteCalculationBtn" class="btn btn-danger delete-calculation-btn" type="button">Delete calculation</button>
-          <p>This removes the currently opened saved calculation. The Project itself stays available.</p>
-        </section>
-      </aside>
-    </main>
-
-    <nav class="mobile-dock" aria-label="Mobile calculator actions">
-      <button id="mobileNewBtn" class="mobile-dock-btn" type="button">
-        <span class="dock-icon">＋</span><span>New</span>
-      </button>
-      <button id="mobileClientBtn" class="mobile-dock-btn" type="button">
-        <span class="dock-icon">◫</span><span id="mobileClientLabel">Client</span>
-      </button>
-      <button id="mobileProjectBtn" class="mobile-dock-btn" type="button">
-        <span class="dock-icon">▧</span><span>Project</span>
-      </button>
-      <button id="mobileSaveBtn" class="mobile-dock-btn mobile-save" type="button">
-        <span class="dock-icon">✓</span><span>Save</span>
-      </button>
-    </nav>
+    </section>
   </div>
 
   <div id="projectsModal" class="modal" hidden>
     <div class="modal-backdrop" data-projects-close></div>
     <section class="projects-dialog" role="dialog" aria-modal="true" aria-labelledby="projectsTitle">
       <div class="section-head projects-head">
-        <div><h2 id="projectsTitle">Saved projects</h2><span id="projectsCount" class="muted">0 projects</span></div>
-        <button id="projectsCloseBtn" class="btn btn-ghost compact" type="button">Close</button>
+        <div><p class="eyebrow">Home</p><h2 id="projectsTitle">Saved projects</h2><span id="projectsCount" class="muted">0 projects</span></div>
+        <div class="projects-head-actions">
+          <button id="projectsNewBtn" class="btn btn-primary compact" type="button">+ New calculation</button>
+          <button id="projectsSettingsBtn" class="btn btn-secondary compact" type="button">Settings</button>
+          <button id="projectsCloseBtn" class="btn btn-ghost compact" type="button">Close</button>
+        </div>
       </div>
       <div class="projects-toolbar">
         <label>
@@ -314,8 +334,10 @@
         <button id="versionsCloseBtn" class="btn btn-ghost compact" type="button">Close</button>
       </div>
       <div class="project-hub-actions">
+        <button id="projectCalculationsTab" class="btn btn-secondary active" type="button">Calculations</button>
         <button id="projectPhotosBtn" class="btn btn-secondary" type="button">Photos <span id="projectPhotoCount">0</span></button>
-        <button id="projectNewOfferteBtn" class="btn btn-primary" type="button">Nieuwe offerte</button>
+        <button id="projectOffertesTab" class="btn btn-secondary" type="button">Offertes</button>
+        <button id="projectNewOfferteBtn" class="btn btn-primary" type="button">+ Nieuwe offerte</button>
       </div>
       <div class="project-section-head">
         <div><strong>Calculations</strong><span>Every saved version for this project</span></div>
@@ -348,20 +370,7 @@
           <label class="wide-label">Introductie<textarea id="offerteIntro" rows="3">Bedankt voor uw interesse. Op basis van de besproken werken bezorgen wij u graag onderstaande offerte voor de renovatie van uw badkamer.</textarea></label>
         </section>
 
-        <section class="offerte-card">
-          <div class="section-head"><div><h3>Bedrijfsgegevens</h3></div><button id="saveOfferteProfileBtn" class="btn btn-secondary compact" type="button">Opslaan</button></div>
-          <div class="form-grid two">
-            <label>Bedrijfsnaam<input id="companyName" type="text" /></label>
-            <label>BTW-nummer<input id="companyVat" type="text" placeholder="BE..." /></label>
-            <label>Adres<input id="companyAddress" type="text" /></label>
-            <label>Postcode & gemeente<input id="companyPostalCity" type="text" /></label>
-            <label>E-mail<input id="companyEmail" type="email" /></label>
-            <label>Telefoon<input id="companyPhone" type="tel" /></label>
-            <label>Website<input id="companyWebsite" type="text" /></label>
-            <label>IBAN<input id="companyIban" type="text" /></label>
-          </div>
-          <label class="wide-label">Betalingsvoorwaarden<textarea id="companyPaymentTerms" rows="2" placeholder="Bijv. volgens overeenkomst"></textarea></label>
-        </section>
+        
       </div>
 
       <div class="offerte-preview-strip">
