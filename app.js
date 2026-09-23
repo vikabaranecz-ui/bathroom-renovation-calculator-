@@ -1081,16 +1081,16 @@
     } else {
       state.offerteProfileId = null;
       state.offerteProfile = {
-        company_name:'Reno Rangers BV',
-        company_address:'',
-        company_postal_city:'',
-        vat_number:'',
+        company_name:'BV Reno Rangers',
+        company_address:'Bergensesteenweg 24/08',
+        company_postal_city:'1600 Sint-Pieters-Leeuw',
+        vat_number:'BE0793260159',
         email:'info@renorangers.be',
         phone:'+32 465 88 39 19',
-        website:'renorangers.be',
+        website:'www.renorangers.be',
         iban:'',
         validity_days:14,
-        payment_terms:'Volgens overeenkomst.'
+        payment_terms:'10% bij ondertekening van de offerte; 40% vóór bestelling van de materialen; 30% bij de start van de werken; 20% bij oplevering van het project.'
       };
     }
     return state.offerteProfile;
@@ -1196,104 +1196,142 @@
     return y + lines.length * lineHeight;
   }
 
-  function generateOffertePdfBlob() {
-    if (!window.jspdf || !window.jspdf.jsPDF) throw new Error('PDF module is nog niet geladen.');
-    const profile = collectOfferteProfileForm();
-    if (!profile.company_name) throw new Error('Vul eerst de bedrijfsnaam in.');
-    const result = state.lastResult || calculate();
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({unit:'mm',format:'a4'});
-    const pageW = 210, pageH = 297, m = 18;
-    let y = 20;
+  async function loadLogoDataUrl() {
+    const response=await fetch('./assets/rr-logo.png');
+    if(!response.ok) return null;
+    const blob=await response.blob();
+    return await new Promise((resolve)=>{
+      const reader=new FileReader();
+      reader.onload=()=>resolve(reader.result);
+      reader.onerror=()=>resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  }
 
-    function pageBreak(required) {
-      if (y + required > pageH - 20) {
-        doc.addPage();
-        y = 20;
-      }
+  async function generateOffertePdfBlob() {
+    if(!window.jspdf||!window.jspdf.jsPDF) throw new Error('PDF module is nog niet geladen.');
+    const profile=collectOfferteProfileForm();
+    if(!profile.company_name) throw new Error('Vul eerst de bedrijfsnaam in.');
+    const result=state.lastResult||calculate();
+    const {jsPDF}=window.jspdf;
+    const doc=new jsPDF({unit:'mm',format:'a4'});
+    const pageW=210,pageH=297,m=16,red=[255,49,49],black=[0,0,0];
+    const logo=await loadLogoDataUrl();
+
+    function footer(){
+      doc.setDrawColor(...red); doc.setLineWidth(0.8); doc.line(m,pageH-17,pageW-m,pageH-17);
+      doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(80,80,80);
+      const txt=[profile.company_name,profile.vat_number?'BTW '+profile.vat_number:'',profile.company_address,profile.company_postal_city,profile.email,profile.phone,profile.website].filter(Boolean).join('  |  ');
+      doc.text(doc.splitTextToSize(txt,pageW-2*m),m,pageH-11);
+    }
+    function header(title){
+      if(logo) doc.addImage(logo,'PNG',m,12,34,16);
+      doc.setTextColor(...black); doc.setFont('helvetica','bold'); doc.setFontSize(22);
+      doc.text(title,pageW-m,21,{align:'right'});
+      doc.setDrawColor(...red); doc.setLineWidth(1.2); doc.line(m,33,pageW-m,33);
+    }
+    function newPage(title){doc.addPage(); header(title); footer();}
+    function wrap(text,x,y,w,size=9,lh=4.4,bold=false){
+      doc.setFont('helvetica',bold?'bold':'normal'); doc.setFontSize(size); doc.setTextColor(25,25,25);
+      const lines=doc.splitTextToSize(String(text||''),w); doc.text(lines,x,y); return y+lines.length*lh;
     }
 
-    doc.setFillColor(15,23,42);
-    doc.rect(0,0,pageW,34,'F');
-    doc.setTextColor(255,255,255);
-    doc.setFont('helvetica','bold');
-    doc.setFontSize(18);
-    doc.text(profile.company_name, m, 18);
-    doc.setFontSize(9);
-    doc.setFont('helvetica','normal');
-    const contact = [profile.phone,profile.email,profile.website].filter(Boolean).join('  |  ');
-    if (contact) doc.text(contact,m,26);
+    // Cover
+    header('OFFERTE');
+    doc.setFont('helvetica','bold'); doc.setFontSize(17); doc.setTextColor(...black);
+    doc.text('Voor badkamer renovatie project',m,51);
+    doc.setFillColor(...red); doc.roundedRect(m,59,82,3,1,1,'F');
+    doc.setFontSize(10); doc.setFont('helvetica','normal');
+    doc.text('Klant',m,76); doc.setFont('helvetica','bold'); doc.text(byId('clientName').value.trim()||'Klant',m+28,76);
+    doc.setFont('helvetica','normal'); doc.text('Adres',m,84); doc.setFont('helvetica','bold'); doc.text(byId('projectAddress').value.trim()||'-',m+28,84);
+    doc.setFont('helvetica','normal'); doc.text('E-mail',m,92); doc.setFont('helvetica','bold'); doc.text(byId('offerteClientEmail').value.trim()||'-',m+28,92);
 
-    doc.setTextColor(15,23,42);
-    doc.setFont('helvetica','bold');
-    doc.setFontSize(24);
-    doc.text('OFFERTE', pageW-m, 52, {align:'right'});
-    doc.setFontSize(10);
-    doc.setFont('helvetica','normal');
-    doc.text('Offertenummer: ' + byId('offerteNumber').value.trim(), pageW-m, 60, {align:'right'});
-    doc.text('Datum: ' + dutchDate(new Date()), pageW-m, 66, {align:'right'});
-    doc.text('Geldig tot: ' + dutchDate(byId('offerteValidityDate').value), pageW-m, 72, {align:'right'});
+    const nr=byId('offerteNumber').value.trim();
+    doc.setFont('helvetica','normal'); doc.setFontSize(9);
+    doc.text('NUMMER:',pageW-76,74); doc.text(nr,pageW-m,74,{align:'right'});
+    doc.text('DATUM:',pageW-76,82); doc.text(dutchDate(new Date()),pageW-m,82,{align:'right'});
+    doc.text('VERVALDAG:',pageW-76,90); doc.text(dutchDate(byId('offerteValidityDate').value),pageW-m,90,{align:'right'});
 
-    y = 48;
-    doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.text('Voor',m,y); y+=6;
-    doc.setFont('helvetica','normal'); doc.setFontSize(11);
-    doc.text(byId('clientName').value.trim() || 'Klant',m,y); y+=5;
-    if (byId('projectAddress').value.trim()) { doc.text(byId('projectAddress').value.trim(),m,y); y+=5; }
-    if (byId('offerteClientEmail').value.trim()) { doc.text(byId('offerteClientEmail').value.trim(),m,y); y+=5; }
+    let y=116;
+    y=wrap(byId('offerteIntro').value.trim(),m,y,pageW-2*m,10,5);
+    y+=10;
+    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...black); doc.text('BV RENO RANGERS',m,y); y+=6;
+    doc.setFont('helvetica','normal'); doc.setFontSize(9);
+    [profile.vat_number?'BTW '+profile.vat_number:'',profile.company_address,profile.company_postal_city,profile.email,profile.phone,profile.website].filter(Boolean).forEach(t=>{doc.text(t,m,y);y+=5;});
+    footer();
 
-    y = 86;
-    doc.setDrawColor(226,232,240); doc.line(m,y,pageW-m,y); y+=10;
-    doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.text('Badkamerrenovatie',m,y); y+=8;
-    doc.setFont('helvetica','normal'); doc.setFontSize(10);
-    y = addPdfWrappedText(doc, byId('offerteIntro').value.trim(), m, y, pageW-2*m, 5) + 5;
+    // Scope + totals
+    newPage('WERKEN');
+    y=48;
+    doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.text('Omschrijving van de werken',m,y); y+=8;
+    (result.lines||[]).forEach((line,idx)=>{
+      const title=DUTCH_SCOPE[line.name]||line.name;
+      const meta=line.meta?String(line.meta):'';
+      const block=doc.splitTextToSize((idx+1)+'. '+title+(meta?'  ·  '+meta:''),pageW-2*m-8);
+      if(y+block.length*5>pageH-28){newPage('WERKEN');y=48;}
+      doc.setFillColor(248,248,248); doc.roundedRect(m,y-4,pageW-2*m,block.length*5+4,2,2,'F');
+      doc.setTextColor(...black); doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.text(block,m+4,y); y+=block.length*5+7;
+    });
+    if(y>220){newPage('TOTAAL');y=48;}
+    const vatPct=Math.round((result.vatRate||0)*100),vatAmount=result.totalIncVat-result.totalExVat;
+    doc.setDrawColor(...red); doc.setLineWidth(0.8); doc.line(112,y,194,y); y+=9;
+    doc.setFontSize(10); doc.setTextColor(70,70,70); doc.text('Totaal excl. BTW',112,y); doc.setTextColor(...black); doc.text(pdfEuro(result.totalExVat),194,y,{align:'right'}); y+=7;
+    doc.setTextColor(70,70,70); doc.text('BTW '+vatPct+'%',112,y); doc.setTextColor(...black); doc.text(pdfEuro(vatAmount),194,y,{align:'right'}); y+=9;
+    doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.text('TOTAAL INCL. BTW',112,y); doc.setTextColor(...red); doc.text(pdfEuro(result.totalIncVat),194,y,{align:'right'});
+    y+=18;
+    doc.setTextColor(...black); doc.setFontSize(10); doc.text('Betalingsvoorwaarden',m,y); y+=7;
+    ['10% bij ondertekening van de offerte om het project in de planning te bevestigen.',
+     '40% vóór bestelling van de materialen. Materialen worden pas besteld na ontvangst van deze betaling.',
+     '30% bij de start van de werken, uiterlijk op de eerste werkdag.',
+     '20% bij oplevering van het project, na afronding van de werken.'].forEach(t=>{y=wrap('• '+t,m,y,pageW-2*m,8.5,4.2);y+=2;});
+    footer();
 
-    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.text('Omschrijving van de werken',m,y); y+=7;
-    doc.setFont('helvetica','normal'); doc.setFontSize(10);
-    (result.lines || []).forEach((line) => {
-      pageBreak(10);
-      const title = DUTCH_SCOPE[line.name] || line.name;
-      doc.setFillColor(248,250,252);
-      doc.roundedRect(m,y-4,pageW-2*m,9,2,2,'F');
-      doc.setTextColor(15,23,42);
-      doc.text('- ' + title, m+3, y+1);
-      if (line.meta) {
-        doc.setTextColor(100,116,139);
-        doc.text(String(line.meta), pageW-m-3, y+1, {align:'right'});
-      }
-      y+=11;
+    // General conditions
+    const terms=[
+      ['1. Offerte en akkoord','De offerte is opgesteld op basis van de informatie, afmetingen, materiaalkeuzes en zichtbare toestand van de werf op het moment van opmaak. Door ondertekening of schriftelijke goedkeuring bevestigt de klant akkoord te gaan met de omschreven werken, prijzen, betalingsvoorwaarden en algemene voorwaarden.'],
+      ['2. Omvang van de werken','Reno Rangers voert enkel de werken uit die duidelijk in de offerte vermeld staan. Niet-vermelde werken en noodzakelijke bijkomende werken door verborgen schade of technische aanpassingen kunnen apart worden aangerekend na overleg.'],
+      ['3. Materialen en keuzes','De materiaalprijs is gebaseerd op de keuzes die gekend zijn bij opmaak. Wijzigingen in sanitaire toestellen, kranen, doucheglas, radiator, accessoires, vloerbekleding of andere materialen kunnen de eindprijs aanpassen.'],
+      ['4. Prijs en btw','Alle prijzen zijn gebaseerd op de gekende situatie bij opmaak. Indien de voorwaarden voor het verlaagde btw-tarief van 6% niet vervuld zijn, wordt 21% toegepast.'],
+      ['5. Betalingsvoorwaarden','10% bij ondertekening, 40% vóór bestelling van materialen, 30% bij de start van de werken en 20% bij oplevering.'],
+      ['6. Planning en uitvoering','De planning wordt in overleg bepaald en is indicatief tenzij schriftelijk anders overeengekomen. Leveranciersvertraging, bijkomende werken, verborgen gebreken, ziekte of overmacht kunnen de planning wijzigen.'],
+      ['7. Toegang tot de werf','De klant zorgt voor vrije toegang tot de werkzone, water, elektriciteit en voldoende ruimte voor materialen en gereedschap.'],
+      ['8. Bescherming, stof en hinder','Reno Rangers neemt redelijke maatregelen om vloeren, trappen en omliggende zones te beschermen. Stof, lawaai en tijdelijke hinder kunnen bij renovatiewerken niet volledig worden uitgesloten.'],
+      ['9. Verborgen gebreken','Verborgen gebreken zoals lekken, slechte leidingen, vochtproblemen, rotte constructies, onstabiele ondergronden of elektrische problemen worden gemeld en bijkomende werken gebeuren na overleg.'],
+      ['10. Mortex en ambachtelijke afwerking','Lichte verschillen in kleur, textuur, structuur, glansgraad of schakering horen bij het ambachtelijke karakter van Mortex en gelden niet als gebrek.'],
+      ['11. Wijzigingen tijdens de werken','Wijzigingen door de klant kunnen invloed hebben op prijs, planning, materiaalkeuze en technische uitvoering en worden bij voorkeur schriftelijk bevestigd.'],
+      ['12. Oplevering','Na afronding gebeurt een controle met de klant. Zichtbare opmerkingen worden bij oplevering gemeld; kleine restpunten kunnen nadien worden ingepland.'],
+      ['13. Garantie en aansprakelijkheid','De garantie geldt enkel op werken uitgevoerd door Reno Rangers en op materialen geleverd door Reno Rangers, binnen de toepasselijke voorwaarden.'],
+      ['14. Annulatie door de klant','Bij annulatie na goedkeuring kunnen reeds gemaakte kosten, bestelde materialen, voorbereiding, gereserveerde planning en uitgevoerde werken worden aangerekend.'],
+      ['15. Foto’s en portfolio','Reno Rangers mag foto’s nemen voor werfopvolging, kwaliteitscontrole en portfolio. Foto’s met personen, persoonsgegevens of herkenbare privé-elementen worden niet publiek gebruikt zonder toestemming.'],
+      ['16. Overmacht','Reno Rangers is niet aansprakelijk voor vertraging of niet-uitvoering door omstandigheden buiten haar controle, zoals ziekte, leveringsproblemen, technische problemen, extreme weersomstandigheden of onvoorziene situaties op de werf.'],
+      ['17. Betwistingen','Bij vragen of opmerkingen proberen klant en Reno Rangers eerst samen een redelijke oplossing te vinden. Op de overeenkomst is Belgisch recht van toepassing.'],
+      ['18. Akkoordverklaring','Door ondertekening verklaart de klant: “Ik heb de offerte en de algemene voorwaarden gelezen, begrepen en goedgekeurd.”']
+    ];
+    newPage('ALGEMENE VOORWAARDEN');
+    y=48;
+    terms.forEach(([head,body])=>{
+      const needed=8+doc.splitTextToSize(body,pageW-2*m).length*4.1;
+      if(y+needed>pageH-25){newPage('ALGEMENE VOORWAARDEN');y=48;}
+      doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...black);doc.text(head,m,y);y+=5;
+      y=wrap(body,m,y,pageW-2*m,8,4.1);y+=4;
     });
 
-    pageBreak(50);
-    y+=3;
-    doc.setDrawColor(226,232,240); doc.line(m,y,pageW-m,y); y+=9;
-    const vatPct = Math.round((result.vatRate || 0)*100);
-    const vatAmount = result.totalIncVat - result.totalExVat;
-    const left = pageW - 83;
-    doc.setFontSize(10); doc.setTextColor(71,85,105);
-    doc.text('Totaal excl. btw',left,y); doc.setTextColor(15,23,42); doc.text(pdfEuro(result.totalExVat),pageW-m,y,{align:'right'}); y+=7;
-    doc.setTextColor(71,85,105); doc.text('Btw ' + vatPct + '%',left,y); doc.setTextColor(15,23,42); doc.text(pdfEuro(vatAmount),pageW-m,y,{align:'right'}); y+=9;
-    doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.text('Totaal incl. btw',left,y); doc.text(pdfEuro(result.totalIncVat),pageW-m,y,{align:'right'}); y+=13;
+    if(y>225){newPage('AKKOORD');y=48;}
+    y+=4; doc.setDrawColor(...red); doc.line(m,y,pageW-m,y); y+=10;
+    doc.setFont('helvetica','bold');doc.setFontSize(11);doc.text('Voor akkoord',m,y);y+=18;
+    doc.setDrawColor(150);doc.line(m,y,m+72,y);doc.line(pageW-m-72,y,pageW-m,y);
+    doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(100);
+    doc.text('Naam klant & datum',m,y+5);doc.text('Handtekening',pageW-m-72,y+5);
+    footer();
 
-    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.text('Voorwaarden',m,y); y+=7;
-    doc.setFont('helvetica','normal'); doc.setFontSize(9);
-    y = addPdfWrappedText(doc,
-      'Deze offerte is opgesteld op basis van de huidige inspectie en de op dit moment gekende omstandigheden. Verborgen gebreken, bijkomende technische vereisten of wijzigingen in materiaalkeuze kunnen aanleiding geven tot een aangepaste prijs.',
-      m,y,pageW-2*m,4.5)+4;
-    if (profile.payment_terms) {
-      y = addPdfWrappedText(doc,'Betalingsvoorwaarden: ' + profile.payment_terms,m,y,pageW-2*m,4.5)+4;
-    }
-    y = addPdfWrappedText(doc,'Deze offerte is geldig tot ' + dutchDate(byId('offerteValidityDate').value) + '.',m,y,pageW-2*m,4.5)+8;
-
-    pageBreak(30);
-    doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.text('Voor akkoord',m,y); y+=15;
-    doc.setDrawColor(148,163,184);
-    doc.line(m,y,m+70,y); doc.line(pageW-m-70,y,pageW-m,y);
-    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(100,116,139);
-    doc.text('Naam & datum',m,y+5); doc.text('Handtekening',pageW-m-70,y+5);
-
-    doc.setFontSize(8); doc.setTextColor(100,116,139);
-    const footer = [profile.company_address,profile.company_postal_city,profile.vat_number ? 'BTW ' + profile.vat_number : '',profile.iban ? 'IBAN ' + profile.iban : ''].filter(Boolean).join('  |  ');
-    if (footer) doc.text(footer,pageW/2,pageH-10,{align:'center'});
+    // Thank-you page
+    newPage('BEDANKT VOOR UW VERTROUWEN');
+    y=64;
+    y=wrap('Bij Reno Rangers geloven we dat elke renovatie begint met vertrouwen en eindigt met tevredenheid.',m,y,pageW-2*m,13,6,true);y+=8;
+    y=wrap('Bedankt dat u de tijd heeft genomen om onze offerte te bekijken. Wij waarderen uw interesse en de kans om mee te denken aan uw project.',m,y,pageW-2*m,10,5);y+=6;
+    y=wrap('Of het nu gaat om één ruimte of een volledige renovatie – wij zorgen voor een vlotte samenwerking, duidelijke communicatie en een resultaat waar u trots op kunt zijn.',m,y,pageW-2*m,10,5);y+=14;
+    doc.setFont('helvetica','bold');doc.setFontSize(16);doc.setTextColor(...red);doc.text('Uw woning, onze zorg.',m,y);y+=9;doc.text('Uw tevredenheid, onze motivatie.',m,y);
+    footer();
 
     return doc.output('blob');
   }
@@ -1326,7 +1364,7 @@
     }
 
     await saveOfferteProfile();
-    const blob = generateOffertePdfBlob();
+    const blob = await generateOffertePdfBlob();
     const userId = currentUserId();
     const number = byId('offerteNumber').value.trim();
     if (!number) throw new Error('Offertenummer ontbreekt.');
