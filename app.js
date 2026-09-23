@@ -52,7 +52,8 @@
     autosaveTimer: null,
     lastSavedAt: null,
     dirty: false,
-    allOffertesRows: []
+    allOffertesRows: [],
+    wizardStep: 0
   };
 
   const byId = (id) => document.getElementById(id);
@@ -730,6 +731,7 @@
     state.estimateId = record.id;
     state.projectId = record.project_id || state.projectId || null;
     byId('estimateState').textContent = 'Saved estimate';
+    setWizardStep(6,{noScroll:true});
     setValue('clientName', record.client_name || '');
     setValue('clientPhone', record.client_phone || '');
     setValue('projectAddress', record.project_address || '');
@@ -792,6 +794,48 @@
     calculate();
   }
 
+
+  const WIZARD_STEPS = [
+    'Client & project',
+    'Room measurements',
+    'Demolition & preparation',
+    'Plumbing & fixtures',
+    'Client-selected products',
+    'Inspection check',
+    'Review & price'
+  ];
+
+  function setWizardStep(index, options) {
+    const opts=options||{};
+    const max=WIZARD_STEPS.length-1;
+    state.wizardStep=Math.max(0,Math.min(max,Number(index)||0));
+    document.querySelectorAll('[data-wizard-step]').forEach((el)=>{
+      el.classList.toggle('is-active',Number(el.getAttribute('data-wizard-step'))===state.wizardStep);
+    });
+    byId('wizardStepLabel').textContent='Step '+(state.wizardStep+1)+' of '+WIZARD_STEPS.length;
+    byId('wizardStepTitle').textContent=WIZARD_STEPS[state.wizardStep];
+    byId('wizardProgressBar').style.width=(((state.wizardStep+1)/WIZARD_STEPS.length)*100)+'%';
+    byId('wizardBackBtn').disabled=state.wizardStep===0;
+    byId('wizardNextBtn').textContent=state.wizardStep===max?'Done':'Next';
+    document.body.classList.toggle('wizard-final',state.wizardStep===max);
+    if(!opts.noScroll){
+      const target=byId('wizardStepLabel');
+      if(target) target.scrollIntoView({behavior:'smooth',block:'start'});
+    }
+  }
+
+  function wizardNext(){
+    if(state.wizardStep<WIZARD_STEPS.length-1){
+      setWizardStep(state.wizardStep+1);
+    }else{
+      window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
+    }
+  }
+
+  function wizardBack(){
+    if(state.wizardStep>0) setWizardStep(state.wizardStep-1);
+  }
+
   function resetEstimate() {
     closeGallery();
     setClientMode(false);
@@ -841,6 +885,7 @@
     state.dirty=false;
     state.lastSavedAt=null;
     setSync('New calculation');
+    setWizardStep(0,{noScroll:true});
     toast('New calculation started.');
   }
 
@@ -1540,48 +1585,41 @@
 
 
   async function deleteCurrentCalculation() {
-    if (!state.estimateId) {
-      toast('This calculation has not been saved yet.', 'error');
+    if(!state.estimateId){
+      toast('This calculation has not been saved yet.','error');
       return;
     }
 
-    const client = byId('clientName').value.trim() || 'this client';
-    const amount = state.lastResult ? euro(state.lastResult.totalIncVat) : '';
-    const message = 'Delete the saved calculation for ' + client + (amount ? ' (' + amount + ')' : '') + '?\n\nThe Project will remain, but this calculation and its linked calculation history will be removed.';
-    if (!window.confirm(message)) return;
+    const client=byId('clientName').value.trim()||'this client';
+    const amount=state.lastResult?euro(state.lastResult.totalIncVat):'';
+    const message='Delete this calculation for '+client+(amount?' ('+amount+')':'')+'?\n\nThe calculation and its saved versions will be removed. The Project, Photos and Offertes stay available.';
+    if(!window.confirm(message)) return;
 
-    const estimateId = state.estimateId;
-    const projectId = state.projectId;
-
-    try {
-      setSync('Deleting', 'busy');
-      await rest('bathroom_estimates?id=eq.' + encodeURIComponent(estimateId), {
-        method: 'PATCH',
-        body: { deleted_at: nowIso(), updated_at: nowIso() },
-        prefer: 'return=minimal'
+    const estimateId=state.estimateId;
+    const projectId=state.projectId;
+    try{
+      setSync('Deleting…','busy');
+      const rows=await rest('rpc/delete_bathroom_calculation',{
+        method:'POST',
+        body:{p_estimate_id:estimateId}
       });
+      if(!Array.isArray(rows)||!rows[0]) throw new Error('Delete was not confirmed by the database.');
 
-      try {
-        await rest('bathroom_calculation_versions?estimate_id=eq.' + encodeURIComponent(estimateId), {
-          method: 'DELETE',
-          prefer: 'return=minimal'
-        });
-      } catch {}
-
-      state.estimateId = null;
-      state.projectId = projectId;
-      byId('estimateState').textContent = 'New calculation';
-      setSync('Synced');
-      toast('Calculation deleted. Project, photos and offertes kept.');
+      state.estimateId=null;
+      state.projectId=projectId;
       resetEstimate();
       state.projectId=projectId;
+      setSync('Deleted');
+      toast('Calculation deleted.');
       try{await loadProjectsSpace();}catch{}
-    } catch (error) {
-      setSync('Delete failed', 'error');
-      toast('Delete failed: ' + (error.message || 'Could not delete calculation.'), 'error');
+      if(!byId('versionsModal').hidden){
+        closeVersions();
+      }
+    }catch(error){
+      setSync('Delete failed','error');
+      toast('Delete failed: '+(error.message||'Could not delete calculation.'),'error');
     }
   }
-
 
   function openSettings() {
     if(state.offerteProfile) fillOfferteProfileForm(state.offerteProfile);
@@ -1777,6 +1815,7 @@
               notes: snapshot.notes || ''
             });
             byId('estimateState').textContent = 'Historical calculation';
+            setWizardStep(6,{noScroll:true});
             closeVersions();
             toast('Saved calculation loaded.');
           } catch (error) {
@@ -1860,6 +1899,8 @@
     byId('saveBtnMobile').addEventListener('click', () => saveEstimate({draft:false}));
     byId('mobileSaveBtn').addEventListener('click', () => saveEstimate({draft:false}));
     byId('newBtn').addEventListener('click', resetEstimate);
+    byId('wizardBackBtn').addEventListener('click', wizardBack);
+    byId('wizardNextBtn').addEventListener('click', wizardNext);
     byId('mobileNewBtn').addEventListener('click', resetEstimate);
     byId('saveRatesBtn').addEventListener('click', async () => {
       try { await savePricing(); } catch (error) {
@@ -1972,6 +2013,7 @@
     document.querySelectorAll('input[type="number"]').forEach((el) => el.setAttribute('inputmode', 'decimal'));
     syncPricingInputs();
     calculate();
+    setWizardStep(0,{noScroll:true});
     const restored = await restoreSession();
     if (restored) await enterApp();
   }
