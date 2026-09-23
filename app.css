@@ -641,3 +641,32 @@ input:focus,select:focus,textarea:focus{
   .offerte-row{grid-template-columns:1fr}
   .offerte-row-actions{display:grid;grid-template-columns:1fr 1fr}
 }
+
+.btn-danger{
+  background:#fff;
+  color:#b42318;
+  border:1px solid #f0b4ae;
+}
+.btn-danger:hover{background:#fff5f4;border-color:#e98d84}
+.delete-calculation-zone{
+  order:3;
+  width:100%;
+  padding:4px 2px 0;
+  text-align:center;
+}
+.delete-calculation-btn{width:100%}
+.delete-calculation-zone p{
+  margin:7px 10px 0;
+  font-size:10px;
+  line-height:1.45;
+  color:#94a3b8;
+}
+.client-mode .delete-calculation-zone{display:none!important}
+@media(min-width:721px){
+  .delete-calculation-zone{
+    padding:0;
+    text-align:left;
+  }
+  .delete-calculation-btn{width:auto}
+  .delete-calculation-zone p{margin:7px 0 0}
+}
