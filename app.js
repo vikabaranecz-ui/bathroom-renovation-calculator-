@@ -975,7 +975,7 @@
       button.addEventListener('click', async () => {
         try {
           setSync('Loading calculation', 'busy');
-          const rows = await rest('bathroom_estimates?id=eq.' + encodeURIComponent(button.getAttribute('data-estimate-id')) + '&select=*&limit=1');
+          const rows = await rest('bathroom_estimates?id=eq.' + encodeURIComponent(button.getAttribute('data-estimate-id')) + '&deleted_at=is.null&select=*&limit=1');
           if (Array.isArray(rows) && rows[0]) fillEstimate(rows[0]);
           setSync('Synced');
         } catch (error) {
@@ -1012,7 +1012,7 @@
 
   async function loadRecent() {
     try {
-      const rows = await rest('bathroom_estimates?select=id,project_id,client_name,client_phone,project_address,total_inc_vat,status,created_at,updated_at&order=updated_at.desc');
+      const rows = await rest('bathroom_estimates?deleted_at=is.null&select=id,project_id,client_name,client_phone,project_address,total_inc_vat,status,created_at,updated_at&order=updated_at.desc');
       state.historyRows = Array.isArray(rows) ? rows : [];
       renderHistory(state.historyRows);
     } catch (error) {
@@ -1456,6 +1456,50 @@
     }
   }
 
+
+  async function deleteCurrentCalculation() {
+    if (!state.estimateId) {
+      toast('This calculation has not been saved yet.', 'error');
+      return;
+    }
+
+    const client = byId('clientName').value.trim() || 'this client';
+    const amount = state.lastResult ? euro(state.lastResult.totalIncVat) : '';
+    const message = 'Delete the saved calculation for ' + client + (amount ? ' (' + amount + ')' : '') + '?\n\nThe Project will remain, but this calculation and its linked calculation history will be removed.';
+    if (!window.confirm(message)) return;
+
+    const estimateId = state.estimateId;
+    const projectId = state.projectId;
+
+    try {
+      setSync('Deleting', 'busy');
+      await rest('bathroom_estimates?id=eq.' + encodeURIComponent(estimateId), {
+        method: 'PATCH',
+        body: { deleted_at: nowIso(), updated_at: nowIso() },
+        prefer: 'return=minimal'
+      });
+
+      try {
+        await rest('bathroom_calculation_versions?estimate_id=eq.' + encodeURIComponent(estimateId), {
+          method: 'DELETE',
+          prefer: 'return=minimal'
+        });
+      } catch {}
+
+      state.estimateId = null;
+      state.projectId = projectId;
+      byId('estimateState').textContent = 'New calculation';
+      await loadRecent();
+      setSync('Synced');
+      toast('Calculation deleted. Project, photos and offertes kept.');
+      resetEstimate();
+      state.projectId = projectId;
+    } catch (error) {
+      setSync('Delete failed', 'error');
+      toast('Delete failed: ' + (error.message || 'Could not delete calculation.'), 'error');
+    }
+  }
+
   function closeProjectsSpace() {
     byId('projectsModal').hidden = true;
   }
@@ -1526,7 +1570,7 @@
 
     const [projects, estimates, versions] = await Promise.all([
       rest('bathroom_projects?select=id,title,client_name,client_phone,project_address,status,created_at,updated_at&order=updated_at.desc'),
-      rest('bathroom_estimates?select=id,project_id,total_inc_vat,updated_at&order=updated_at.desc'),
+      rest('bathroom_estimates?deleted_at=is.null&select=id,project_id,total_inc_vat,updated_at&order=updated_at.desc'),
       rest('bathroom_calculation_versions?select=project_id,id')
     ]);
 
@@ -1560,7 +1604,7 @@
     try {
       const rows = await rest(
         'bathroom_estimates?project_id=eq.' + encodeURIComponent(projectId) +
-        '&select=*&order=updated_at.desc&limit=1'
+        '&deleted_at=is.null&select=*&order=updated_at.desc&limit=1'
       );
       const estimate = Array.isArray(rows) && rows[0] ? rows[0] : null;
       const project = state.projectsRows.find((row) => row.id === projectId);
@@ -1751,6 +1795,7 @@
     });
     byId('refreshBtn').addEventListener('click', loadRecent);
     byId('historySearch').addEventListener('input', filterHistory);
+    byId('deleteCalculationBtn').addEventListener('click', deleteCurrentCalculation);
     byId('offerteBtn').addEventListener('click', openOfferteModal);
     byId('galleryBtn').addEventListener('click', openGallery);
     byId('mobileProjectBtn').addEventListener('click', openProjectsSpace);
