@@ -797,6 +797,7 @@
 
 
   let wizardQuestions = [];
+  let wizardGroups = [];
 
   function questionText(label) {
     const toggleText = label.querySelector('.toggle span, span');
@@ -814,12 +815,74 @@
   }
 
   function buildQuestionFlow() {
-    wizardQuestions = Array.from(document.querySelectorAll('.wizard-step label'))
-      .filter((label)=>!label.closest('[hidden]'));
+    wizardQuestions = [];
+    wizardGroups = [];
 
-    wizardQuestions.forEach((label,index)=>{
-      label.classList.add('question-item');
-      label.setAttribute('data-question-index',String(index));
+    const panels = Array.from(document.querySelectorAll('.wizard-step'));
+    panels.forEach((panel,groupIndex)=>{
+      const title=(panel.querySelector('h2')?.textContent||('Group '+(groupIndex+1))).trim();
+      const questions=Array.from(panel.querySelectorAll('label'))
+        .filter((label)=>!label.closest('[hidden]'));
+
+      const group={
+        index:groupIndex,
+        title,
+        shortTitle:title
+          .replace('Client & project','Client')
+          .replace('Room measurements','Measurements')
+          .replace('Demolition & preparation','Prep')
+          .replace('Plumbing, electricity & fixtures','Plumbing')
+          .replace('Client-selected products','Products')
+          .replace('Inspection confidence','Inspection'),
+        startIndex:wizardQuestions.length,
+        count:questions.length
+      };
+
+      questions.forEach((label,questionIndex)=>{
+        const globalIndex=wizardQuestions.length;
+        label.classList.add('question-item');
+        label.setAttribute('data-question-index',String(globalIndex));
+        label.setAttribute('data-group-index',String(groupIndex));
+        label.setAttribute('data-group-question-index',String(questionIndex));
+        wizardQuestions.push(label);
+      });
+
+      wizardGroups.push(group);
+    });
+
+    renderWizardGroupTabs();
+  }
+
+  function renderWizardGroupTabs() {
+    const tabs=byId('wizardGroupTabs');
+    if(!tabs) return;
+    tabs.innerHTML=wizardGroups.map((group)=>
+      '<button type="button" class="wizard-group-tab" data-wizard-group="'+group.index+'">'+
+      escapeHtml(group.shortTitle)+'</button>'
+    ).join('');
+
+    tabs.querySelectorAll('[data-wizard-group]').forEach((button)=>{
+      button.addEventListener('click',()=>{
+        const group=wizardGroups[Number(button.getAttribute('data-wizard-group'))];
+        if(group) setQuestion(group.startIndex);
+      });
+    });
+  }
+
+  function activeGroupForQuestion(index) {
+    return wizardGroups.find((group)=>
+      index>=group.startIndex && index<group.startIndex+group.count
+    ) || null;
+  }
+
+  function updateGroupTabs(activeGroupIndex) {
+    document.querySelectorAll('.wizard-group-tab').forEach((tab)=>{
+      const idx=Number(tab.getAttribute('data-wizard-group'));
+      tab.classList.toggle('is-active',idx===activeGroupIndex);
+      tab.classList.toggle('is-done',idx<activeGroupIndex);
+      if(idx===activeGroupIndex){
+        tab.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
+      }
     });
   }
 
@@ -838,27 +901,37 @@
 
     if(final){
       byId('wizardReview').classList.add('is-active');
-      byId('wizardStepLabel').textContent='Review';
+      byId('wizardGroupLabel').textContent='Completed';
+      byId('wizardGroupTitle').textContent='All inspection groups finished';
+      byId('wizardStepLabel').textContent='Final review';
       byId('wizardStepTitle').textContent='Review & estimated client price';
       byId('wizardProgressBar').style.width='100%';
       byId('wizardBackBtn').disabled=total===0;
       byId('wizardNextBtn').textContent='Done';
+      updateGroupTabs(wizardGroups.length);
     }else{
       const current=wizardQuestions[state.wizardStep];
       const panel=current.closest('.wizard-step');
+      const group=activeGroupForQuestion(state.wizardStep);
+      const groupQuestionIndex=Number(current.getAttribute('data-group-question-index'))||0;
+
       panel.classList.add('is-active');
       current.classList.add('question-active');
 
-      byId('wizardStepLabel').textContent='Question '+(state.wizardStep+1)+' of '+total;
+      byId('wizardGroupLabel').textContent='Group '+(group.index+1)+' of '+wizardGroups.length;
+      byId('wizardGroupTitle').textContent=group.title;
+      byId('wizardStepLabel').textContent='Question '+(groupQuestionIndex+1)+' of '+group.count;
       byId('wizardStepTitle').textContent=questionText(current);
 
-      const sectionTitle=questionSection(current);
-      const head=panel.querySelector('.section-head h2');
-      if(head && sectionTitle) head.textContent=sectionTitle;
-
-      byId('wizardProgressBar').style.width=(((state.wizardStep+1)/(total+1))*100)+'%';
+      const withinGroup=((groupQuestionIndex+1)/Math.max(1,group.count))*100;
+      byId('wizardProgressBar').style.width=withinGroup+'%';
       byId('wizardBackBtn').disabled=state.wizardStep===0;
-      byId('wizardNextBtn').textContent='Next';
+      byId('wizardNextBtn').textContent=
+        groupQuestionIndex===group.count-1 && group.index<wizardGroups.length-1
+          ? 'Next group'
+          : 'Next';
+
+      updateGroupTabs(group.index);
 
       const focusable=current.querySelector('input,select,textarea');
       if(focusable && !opts.noFocus){
@@ -867,7 +940,7 @@
     }
 
     if(!opts.noScroll){
-      const target=byId('wizardStepLabel');
+      const target=byId('wizardGroupLabel');
       if(target) target.scrollIntoView({behavior:'smooth',block:'start'});
     }
   }
