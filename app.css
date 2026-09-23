@@ -605,3 +605,39 @@ input:focus,select:focus,textarea:focus{
   .project-card .project-actions{display:grid;grid-template-columns:1fr 1fr}
   .project-card .project-total{grid-column:1/-1}
 }
+
+.offerte-dialog{
+  position:relative;z-index:1;width:min(980px,100%);max-height:min(90vh,940px);
+  overflow:auto;background:#fff;border:1px solid var(--line);border-radius:24px;
+  padding:22px;box-shadow:var(--shadow-lg)
+}
+.offerte-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.offerte-card{border:1px solid var(--line);border-radius:18px;padding:16px;background:#fff}
+.offerte-card h3{margin:0 0 14px;font-size:14px}
+.offerte-preview-strip{
+  display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px
+}
+.offerte-preview-strip>div{padding:14px;border-radius:16px;background:#f8fafc;border:1px solid var(--line)}
+.offerte-preview-strip span{display:block;font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.06em}
+.offerte-preview-strip strong{display:block;margin-top:5px;font-size:18px;color:#0f172a}
+.offerte-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+.offertes-list{display:grid;gap:8px}
+.offerte-row{
+  display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;
+  padding:12px 13px;border:1px solid var(--line);border-radius:15px;background:#fff
+}
+.offerte-row strong{display:block;font-size:12px}
+.offerte-row small{display:block;margin-top:3px;color:#64748b}
+.offerte-row-actions{display:flex;align-items:center;gap:7px}
+.offerte-status{
+  display:inline-flex;align-items:center;padding:4px 7px;border:1px solid var(--line);
+  border-radius:999px;background:#f8fafc;color:#64748b;font-size:10px;font-weight:650
+}
+@media(max-width:720px){
+  .offerte-dialog{position:fixed;inset:0;width:100%;height:100%;max-height:none;border:0;border-radius:0;padding:14px 12px calc(18px + env(safe-area-inset-bottom))}
+  .offerte-grid{grid-template-columns:1fr}
+  .offerte-preview-strip{grid-template-columns:1fr}
+  .offerte-actions{display:grid;grid-template-columns:1fr}
+  .offerte-row{grid-template-columns:1fr}
+  .offerte-row-actions{display:grid;grid-template-columns:1fr 1fr}
+}
