@@ -821,3 +821,138 @@ body.wizard-final .summary-column{display:flex!important}
     justify-content:flex-start;
   }
 }
+
+/* Cleaner final estimate board */
+body.wizard-final .workspace{
+  grid-template-columns:1fr!important;
+  max-width:1180px;
+  margin:0 auto;
+}
+body.wizard-final .editor-column{
+  max-width:820px;
+  width:100%;
+  margin:0 auto;
+}
+body.wizard-final .summary-column{
+  width:100%;
+  max-width:980px;
+  margin:0 auto;
+  display:grid!important;
+  grid-template-columns:1fr!important;
+  gap:14px;
+}
+.final-estimate-card{
+  border:1px solid #dbe3ec;
+  border-radius:28px;
+  padding:26px;
+  box-shadow:0 18px 50px rgba(15,23,42,.08);
+  background:#fff;
+  overflow:hidden;
+}
+.summary-kicker{
+  display:inline-flex;
+  margin-bottom:12px;
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.09em;
+  text-transform:uppercase;
+  color:#0f766e;
+}
+.final-estimate-card .summary-top{
+  align-items:flex-start;
+  padding-bottom:18px;
+  border-bottom:1px solid var(--line);
+}
+.final-estimate-card .price-block small{
+  display:block;
+  margin-bottom:6px;
+  color:#64748b;
+}
+.final-estimate-card .hero-price{
+  font-size:clamp(52px,7vw,76px);
+  line-height:.95;
+  letter-spacing:-.06em;
+}
+.final-estimate-card .client-summary{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:10px;
+  border-top:0;
+  margin-top:18px;
+}
+.final-estimate-card .client-summary>div{
+  padding:14px;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:#f8fafc;
+}
+.internal-costs{
+  margin-top:16px;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:#fbfcfd;
+}
+.internal-costs summary{
+  cursor:pointer;
+  padding:13px 14px;
+  font-size:12px;
+  font-weight:750;
+  color:#334155;
+}
+.internal-costs .internal-summary{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:0 14px;
+  padding:0 14px 12px;
+  border-top:1px solid var(--line);
+}
+.final-estimate-card .summary-actions{
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:10px;
+  margin-top:18px;
+}
+.final-estimate-card .summary-actions .btn{min-height:48px}
+body.wizard-final .breakdown-panel{
+  width:100%;
+  margin:0!important;
+  border-radius:24px;
+}
+body.wizard-final .breakdown{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:0 24px;
+}
+body.wizard-final .breakdown-row{
+  min-width:0;
+}
+.project-delete-btn{
+  color:#b42318!important;
+  border-color:#f0b4ae!important;
+  background:#fff!important;
+}
+.project-delete-btn:hover{background:#fff5f4!important}
+.offerte-pdf-area{
+  margin-top:16px;
+  padding:14px;
+  border:1px solid var(--line);
+  border-radius:18px;
+  background:#f8fafc;
+}
+.offerte-pdf-area iframe{
+  display:block;
+  width:100%;
+  height:520px;
+  margin-top:10px;
+  border:1px solid #dbe3ec;
+  border-radius:12px;
+  background:#fff;
+}
+@media(max-width:720px){
+  .final-estimate-card{padding:18px;border-radius:22px}
+  .final-estimate-card .client-summary{grid-template-columns:1fr}
+  .internal-costs .internal-summary{grid-template-columns:1fr 1fr}
+  .final-estimate-card .summary-actions{grid-template-columns:1fr!important}
+  body.wizard-final .breakdown{grid-template-columns:1fr}
+  .offerte-pdf-area iframe{height:430px}
+}

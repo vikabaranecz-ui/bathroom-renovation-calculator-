@@ -53,6 +53,7 @@
     lastSavedAt: null,
     dirty: false,
     allOffertesRows: [],
+    currentOfferteUrl: null,
     wizardStep: 0
   };
 
@@ -1269,6 +1270,7 @@
       state.currentOfferteId = null;
       state.currentOfferteBlob = null;
       state.currentOfferteFilename = null;
+      clearOffertePreview();
       byId('offerteModal').hidden = false;
     } catch (error) {
       toast(error.message || 'Kon offerte niet openen.', 'error');
@@ -1277,6 +1279,7 @@
 
   function closeOfferteModal() {
     byId('offerteModal').hidden = true;
+    clearOffertePreview();
   }
 
   function addPdfWrappedText(doc, textValue, x, y, maxWidth, lineHeight) {
@@ -1446,24 +1449,63 @@
     }
   }
 
-  async function ensureSavedOfferte() {
-    if (state.currentOfferteId && state.currentOfferteBlob && state.currentOfferteFilename) {
-      const existing = await rest('bathroom_offertes?id=eq.' + encodeURIComponent(state.currentOfferteId) + '&select=*&limit=1');
-      if (Array.isArray(existing) && existing[0]) return existing[0];
+
+  function clearOffertePreview() {
+    if(state.currentOfferteUrl){
+      URL.revokeObjectURL(state.currentOfferteUrl);
+      state.currentOfferteUrl=null;
+    }
+    const area=byId('offertePdfArea');
+    if(area) area.hidden=true;
+    const frame=byId('offertePdfPreview');
+    if(frame) frame.removeAttribute('src');
+    const link=byId('offerteDownloadLink');
+    if(link) link.setAttribute('href','#');
+  }
+
+  async function prepareOffertePdf() {
+    if(state.currentOfferteBlob && state.currentOfferteFilename && state.currentOfferteUrl){
+      return {blob:state.currentOfferteBlob,filename:state.currentOfferteFilename,url:state.currentOfferteUrl};
+    }
+
+    const number=byId('offerteNumber').value.trim();
+    if(!number) throw new Error('Offertenummer ontbreekt.');
+
+    const blob=await generateOffertePdfBlob();
+    const filename=number.replace(/[^a-zA-Z0-9._-]/g,'-')+'.pdf';
+    const url=URL.createObjectURL(blob);
+
+    state.currentOfferteBlob=blob;
+    state.currentOfferteFilename=filename;
+    state.currentOfferteUrl=url;
+
+    byId('offertePdfPreview').src=url;
+    byId('offerteDownloadLink').href=url;
+    byId('offerteDownloadLink').download=filename;
+    byId('offertePdfArea').hidden=false;
+    byId('offertePdfStatus').textContent='PDF created locally';
+
+    return {blob,filename,url};
+  }
+
+  async function persistPreparedOfferte() {
+    if(state.currentOfferteId){
+      const existing=await rest('bathroom_offertes?id=eq.'+encodeURIComponent(state.currentOfferteId)+'&select=*&limit=1');
+      if(Array.isArray(existing)&&existing[0]) return existing[0];
     }
 
     await saveOfferteProfile();
-    const blob = await generateOffertePdfBlob();
-    const userId = currentUserId();
-    const number = byId('offerteNumber').value.trim();
-    if (!number) throw new Error('Offertenummer ontbreekt.');
-    const filename = number.replace(/[^a-zA-Z0-9._-]/g,'-') + '.pdf';
-    const storagePath = userId + '/' + state.projectId + '/' + Date.now() + '-' + filename;
-    await uploadPdfBlob(blob,storagePath);
+    await prepareOffertePdf();
 
-    const validity = byId('offerteValidityDate').value || null;
-    const result = state.lastResult || calculate();
-    const rows = await rest('bathroom_offertes',{
+    const userId=currentUserId();
+    const number=byId('offerteNumber').value.trim();
+    const storagePath=userId+'/'+state.projectId+'/'+Date.now()+'-'+state.currentOfferteFilename;
+
+    await uploadPdfBlob(state.currentOfferteBlob,storagePath);
+
+    const validity=byId('offerteValidityDate').value||null;
+    const result=state.lastResult||calculate();
+    const rows=await rest('bathroom_offertes',{
       method:'POST',
       body:{
         project_id:state.projectId,
@@ -1482,11 +1524,16 @@
       },
       prefer:'return=representation'
     });
-    if (!Array.isArray(rows) || !rows[0]) throw new Error('Kon offerte niet opslaan.');
-    state.currentOfferteId = rows[0].id;
-    state.currentOfferteBlob = blob;
-    state.currentOfferteFilename = filename;
+    if(!Array.isArray(rows)||!rows[0]) throw new Error('Kon offerte niet opslaan.');
+
+    state.currentOfferteId=rows[0].id;
+    byId('offertePdfStatus').textContent='PDF created and saved to project';
     return rows[0];
+  }
+
+  async function ensureSavedOfferte() {
+    await prepareOffertePdf();
+    return await persistPreparedOfferte();
   }
 
   function downloadBlob(blob, filename) {
@@ -1498,51 +1545,62 @@
 
   async function downloadCurrentOfferte() {
     try {
-      setSync('Offerte maken','busy');
-      const row = await ensureSavedOfferte();
-      downloadBlob(state.currentOfferteBlob,state.currentOfferteFilename);
-      setSync('Synced');
-      toast('Offerte ' + row.offerte_number + ' opgeslagen en gedownload.');
-      await loadProjectOffertes(state.projectId);
-      if(!byId('offersModal').hidden) await openOffersSpace();
+      setSync('Creating PDF…','busy');
+      await prepareOffertePdf();
+      setSync('PDF ready');
+      toast('PDF created. Preview is ready below.');
+
+      try{
+        const row=await persistPreparedOfferte();
+        if(row){
+          await loadProjectOffertes(state.projectId);
+          if(!byId('offersModal').hidden) await openOffersSpace();
+        }
+      }catch(cloudError){
+        byId('offertePdfStatus').textContent='PDF ready · cloud save failed';
+        toast('PDF created. Cloud save failed: '+(cloudError.message||'unknown error'),'error');
+      }
     } catch (error) {
-      setSync('Offerte failed','error');
-      toast(error.message || 'Kon offerte niet maken.','error');
+      setSync('PDF failed','error');
+      toast('PDF failed: '+(error.message||'Could not create PDF.'),'error');
     }
   }
 
   async function sendCurrentOfferte() {
     try {
-      setSync('Offerte maken','busy');
-      const row = await ensureSavedOfferte();
-      const file = new File([state.currentOfferteBlob], state.currentOfferteFilename, {type:'application/pdf'});
-      const subject = 'Offerte ' + row.offerte_number + ' - badkamerrenovatie';
-      const textBody = 'Beste ' + (byId('clientName').value.trim() || 'klant') + ',\n\nIn bijlage vindt u onze offerte voor de badkamerrenovatie.\n\nMet vriendelijke groeten,\n' + (byId('companyName').value.trim() || '');
+      setSync('Preparing PDF…','busy');
+      await prepareOffertePdf();
 
-      if (navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))) {
+      let savedRow=null;
+      try{ savedRow=await persistPreparedOfferte(); }catch{}
+
+      const file=new File([state.currentOfferteBlob],state.currentOfferteFilename,{type:'application/pdf'});
+      const number=byId('offerteNumber').value.trim();
+      const subject='Offerte '+number+' - badkamerrenovatie';
+      const textBody='Beste '+(byId('clientName').value.trim()||'klant')+',\n\nIn bijlage vindt u onze offerte voor de badkamerrenovatie.\n\nMet vriendelijke groeten,\n'+(byId('companyName').value.trim()||'');
+
+      if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
         await navigator.share({title:subject,text:textBody,files:[file]});
-      } else {
-        downloadBlob(state.currentOfferteBlob,state.currentOfferteFilename);
-        const email = byId('offerteClientEmail').value.trim();
-        window.location.href = 'mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(textBody + '\n\nDe PDF is gedownload en kan als bijlage worden toegevoegd.');
+      }else{
+        const email=byId('offerteClientEmail').value.trim();
+        window.location.href='mailto:'+encodeURIComponent(email)+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(textBody+'\n\nGebruik de zichtbare Download PDF-knop om de offerte toe te voegen als bijlage.');
       }
 
-      await rest('bathroom_offertes?id=eq.' + encodeURIComponent(row.id),{
-        method:'PATCH',
-        body:{status:'sent',sent_at:nowIso()},
-        prefer:'return=minimal'
-      });
-      setSync('Synced');
-      toast('Offerte gemarkeerd als verzonden.');
-      await loadProjectOffertes(state.projectId);
-      if(!byId('offersModal').hidden) await openOffersSpace();
-    } catch (error) {
-      if (error && error.name === 'AbortError') {
-        setSync('Synced');
+      if(savedRow){
+        await rest('bathroom_offertes?id=eq.'+encodeURIComponent(savedRow.id),{
+          method:'PATCH',body:{status:'sent',sent_at:nowIso()},prefer:'return=minimal'
+        });
+        byId('offertePdfStatus').textContent='PDF created · saved · marked sent';
+        await loadProjectOffertes(state.projectId);
+      }
+      setSync('PDF ready');
+    }catch(error){
+      if(error&&error.name==='AbortError'){
+        setSync('PDF ready');
         toast('Versturen geannuleerd.');
-      } else {
-        setSync('Offerte failed','error');
-        toast(error.message || 'Kon offerte niet versturen.','error');
+      }else{
+        setSync('Send failed','error');
+        toast(error.message||'Kon offerte niet versturen.','error');
       }
     }
   }
@@ -1723,6 +1781,7 @@
         '<div class="project-actions">' +
           '<div class="project-total">' + escapeHtml(total) + '</div>' +
           '<button class="btn btn-primary compact" type="button" data-project-details="' + escapeHtml(row.id) + '">Open project</button>' +
+          '<button class="btn btn-secondary compact project-delete-btn" type="button" data-project-delete="' + escapeHtml(row.id) + '">Delete</button>' +
         '</div>' +
       '</article>';
     }).join('');
@@ -1732,6 +1791,83 @@
         await openSavedProject(button.getAttribute('data-project-details'), true);
       });
     });
+
+    list.querySelectorAll('[data-project-delete]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        await deleteProject(button.getAttribute('data-project-delete'));
+      });
+    });
+  }
+
+
+  async function removeStorageObjects(bucket, paths) {
+    const clean=(paths||[]).filter(Boolean);
+    if(!clean.length) return;
+    try{
+      const token=await getValidToken();
+      await fetch(SUPABASE_URL + '/storage/v1/object/' + bucket,{
+        method:'DELETE',
+        headers:{
+          apikey:SUPABASE_KEY,
+          Authorization:'Bearer ' + token,
+          'Content-Type':'application/json'
+        },
+        body:JSON.stringify({prefixes:clean})
+      });
+    }catch{}
+  }
+
+  async function deleteProject(projectId) {
+    const project=state.projectsRows.find((row)=>row.id===projectId);
+    const label=project ? (project.client_name||project.title||project.project_address||'Bathroom project') : 'Bathroom project';
+    if(!window.confirm('Delete project "'+label+'"?\n\nAll calculations, saved versions, photos and offers in this project will be removed.')) return;
+
+    try{
+      setSync('Deleting project…','busy');
+
+      const estimates=await rest('bathroom_estimates?project_id=eq.'+encodeURIComponent(projectId)+'&select=id');
+      const estimateIds=(Array.isArray(estimates)?estimates:[]).map((x)=>x.id);
+
+      let photoPaths=[];
+      if(estimateIds.length){
+        const filter=estimateIds.map((id)=>'estimate_id.eq.'+id).join(',');
+        try{
+          const photos=await rest('bathroom_estimate_photos?or=('+encodeURIComponent(filter)+')&select=storage_path');
+          photoPaths=(Array.isArray(photos)?photos:[]).map((x)=>x.storage_path);
+        }catch{}
+      }
+
+      let offerPaths=[];
+      try{
+        const offers=await rest('bathroom_offertes?project_id=eq.'+encodeURIComponent(projectId)+'&select=storage_path');
+        offerPaths=(Array.isArray(offers)?offers:[]).map((x)=>x.storage_path);
+      }catch{}
+
+      const rows=await rest('rpc/delete_bathroom_project',{
+        method:'POST',
+        body:{p_project_id:projectId}
+      });
+      if(rows!==true && !(Array.isArray(rows)&&rows.length) && rows!==null){
+        // PostgREST may return a bare boolean for scalar RPCs.
+      }
+
+      await Promise.all([
+        removeStorageObjects('bathroom-estimate-photos',photoPaths),
+        removeStorageObjects('bathroom-offertes',offerPaths)
+      ]);
+
+      if(state.projectId===projectId){
+        state.projectId=null;
+        state.estimateId=null;
+        resetEstimate();
+      }
+      setSync('Project deleted');
+      toast('Project deleted.');
+      await loadProjectsSpace();
+    }catch(error){
+      setSync('Delete failed','error');
+      toast('Delete project failed: '+(error.message||'Could not delete project.'),'error');
+    }
   }
 
   function filterProjects() {

@@ -190,9 +190,10 @@
       </div>
 
       <aside class="summary-column">
-        <section class="summary-card">
+        <section class="summary-card final-estimate-card">
+          <div class="summary-kicker">Final estimate</div>
           <div class="summary-top">
-            <div><small>Estimated client price</small><div id="totalIncVat" class="hero-price">€0</div><span id="totalExVat">€0 excl. VAT</span></div>
+            <div class="price-block"><small>Estimated client price</small><div id="totalIncVat" class="hero-price">€0</div><span id="totalExVat">€0 excl. VAT</span></div>
             <span id="confidenceBadge" class="confidence-badge">Preliminary</span>
           </div>
           <div class="client-summary">
@@ -200,7 +201,9 @@
             <div><span>Estimated worker-hours</span><strong id="summaryHours">0 h</strong></div>
             <div><span>Products allowance</span><strong id="summaryProducts">€0</strong></div>
           </div>
-          <div class="internal-summary internal-only">
+          <details class="internal-costs internal-only">
+            <summary>Internal cost details</summary>
+            <div class="internal-summary">
             <div><span>Labour cost</span><strong id="laborCost">€0</strong></div>
             <div><span>Construction materials</span><strong id="constructionMaterials">€0</strong></div>
             <div><span>Product cost</span><strong id="productCost">€0</strong></div>
@@ -209,7 +212,8 @@
             <div class="total-line"><span>Internal cost basis</span><strong id="costBasis">€0</strong></div>
             <div><span>Gross contribution</span><strong id="grossContribution">€0</strong></div>
             <div><span>Actual margin</span><strong id="actualMargin">0%</strong></div>
-          </div>
+            </div>
+          </details>
           <div class="summary-actions">
             <button id="summaryClientBtn" class="btn btn-secondary" type="button">Show client</button>
             <button id="offerteBtn" class="btn btn-secondary" type="button">Create offerte</button>
@@ -430,11 +434,19 @@
         <div><span>Project</span><strong id="offerteProjectPreview">-</strong></div>
       </div>
 
+      <div id="offertePdfArea" class="offerte-pdf-area" hidden>
+        <div class="section-head">
+          <div><h3>PDF preview</h3><span id="offertePdfStatus" class="muted">PDF created</span></div>
+          <a id="offerteDownloadLink" class="btn btn-secondary compact" href="#" download>Download PDF</a>
+        </div>
+        <iframe id="offertePdfPreview" title="Offerte PDF preview"></iframe>
+      </div>
+
       <div class="offerte-actions">
-        <button id="downloadOfferteBtn" class="btn btn-secondary" type="button">PDF maken & downloaden</button>
+        <button id="downloadOfferteBtn" class="btn btn-secondary" type="button">Create PDF</button>
         <button id="sendOfferteBtn" class="btn btn-primary" type="button">PDF versturen</button>
       </div>
-      <p class="fine-print">De PDF wordt privé opgeslagen bij dit project. Op mobiel opent Versturen het deelmenu met de PDF als bijlage.</p>
+      <p class="fine-print">De PDF wordt eerst lokaal aangemaakt en zichtbaar als preview. Daarna proberen we dezelfde PDF privé bij het project op te slaan.</p>
     </section>
   </div>
 
