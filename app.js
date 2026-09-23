@@ -51,7 +51,8 @@
     currentOfferteFilename: null,
     autosaveTimer: null,
     lastSavedAt: null,
-    dirty: false
+    dirty: false,
+    allOffertesRows: []
   };
 
   const byId = (id) => document.getElementById(id);
@@ -845,44 +846,26 @@
 
 
   async function saveEstimate(options) {
-    const opts = options || {};
-    const draft = Boolean(opts.draft);
-    const silent = Boolean(opts.silent);
-    if (state.busy) return false;
-    state.busy = true;
-    if (!silent) setSync(draft ? 'Autosaving…' : 'Saving version…', 'busy');
-    try {
-      const result = calculate();
-      const userId = currentUserId();
-      if (!userId) throw new Error('Not signed in');
+    const opts=options||{};
+    const draft=Boolean(opts.draft);
+    const silent=Boolean(opts.silent);
 
-      const clientName = byId('clientName').value.trim();
-      const clientPhone = byId('clientPhone').value.trim();
-      const projectAddress = byId('projectAddress').value.trim();
-      const projectTitle = clientName || projectAddress || 'Bathroom project';
+    if(state.busy){
+      if(!draft&&!silent) toast('A save is already finishing. Try again in a moment.');
+      return false;
+    }
 
-      if (state.projectId) {
-        await rest('bathroom_projects?id=eq.' + encodeURIComponent(state.projectId), {
-          method:'PATCH',
-          body:{title:projectTitle,client_name:clientName,client_phone:clientPhone,project_address:projectAddress,updated_at:nowIso()},
-          prefer:'return=minimal'
-        });
-      } else {
-        const createdProjects = await rest('bathroom_projects', {
-          method:'POST',
-          body:{user_id:userId,title:projectTitle,client_name:clientName,client_phone:clientPhone,project_address:projectAddress,status:'active',updated_at:nowIso()},
-          prefer:'return=representation'
-        });
-        if (!Array.isArray(createdProjects) || !createdProjects[0]) throw new Error('Could not create project');
-        state.projectId = createdProjects[0].id;
-      }
+    state.busy=true;
+    if(!silent) setSync(draft?'Autosaving…':'Saving calculation…','busy');
+    try{
+      const result=calculate();
+      const userId=currentUserId();
+      if(!userId) throw new Error('Not signed in');
 
-      const payload = {
-        project_id:state.projectId,
-        client_name:clientName,
-        client_phone:clientPhone,
-        project_address:projectAddress,
-        status:'estimate',
+      const payload={
+        client_name:byId('clientName').value.trim(),
+        client_phone:byId('clientPhone').value.trim(),
+        project_address:byId('projectAddress').value.trim(),
         room:collectRoom(),
         scope:collectScope(),
         selections:collectSelections(),
@@ -891,36 +874,37 @@
         total_ex_vat:Number(result.totalExVat.toFixed(2)),
         vat_rate:Number(result.vatRate.toFixed(4)),
         total_inc_vat:Number(result.totalIncVat.toFixed(2)),
-        notes:byId('notes').value.trim(),
-        version_nonce:draft ? null : crypto.randomUUID(),
-        updated_at:nowIso()
+        notes:byId('notes').value.trim()
       };
 
-      let savedRecord=null;
-      if(state.estimateId){
-        const updated=await rest('bathroom_estimates?id=eq.'+encodeURIComponent(state.estimateId),{
-          method:'PATCH',body:payload,prefer:'return=representation'
-        });
-        if(Array.isArray(updated)&&updated[0]) savedRecord=updated[0];
-      }else{
-        payload.user_id=userId;
-        const created=await rest('bathroom_estimates',{
-          method:'POST',body:payload,prefer:'return=representation'
-        });
-        if(Array.isArray(created)&&created[0]) savedRecord=created[0];
-      }
-      if(!savedRecord) throw new Error('Could not save calculation');
+      const rows=await rest('rpc/save_bathroom_calculation',{
+        method:'POST',
+        body:{
+          p_project_id:state.projectId,
+          p_estimate_id:state.estimateId,
+          p_payload:payload,
+          p_create_version:!draft
+        }
+      });
 
-      state.estimateId=savedRecord.id;
-      state.projectId=savedRecord.project_id || state.projectId;
-      byId('estimateState').textContent=draft ? 'Draft saved' : 'Version saved';
-      state.lastSavedAt=new Date();
+      if(!Array.isArray(rows)||!rows[0]||!rows[0].project_id||!rows[0].estimate_id){
+        throw new Error('The calculation was not returned after saving.');
+      }
+
+      state.projectId=rows[0].project_id;
+      state.estimateId=rows[0].estimate_id;
+      state.lastSavedAt=new Date(rows[0].saved_at||Date.now());
       state.dirty=false;
+      byId('estimateState').textContent=draft?'Draft saved':'Saved calculation';
       setSync(savedTimeLabel());
-      if(!silent) toast(draft ? 'Draft saved.' : 'Calculation version saved.');
+
+      if(!silent){
+        toast(draft?'Draft saved.':'Calculation saved successfully.');
+        try{ await loadProjectsSpace(); }catch{}
+      }
       return true;
     }catch(error){
-      const message=error&&error.message?error.message:'Could not save estimate.';
+      const message=error&&error.message?error.message:'Could not save calculation.';
       if(!silent){
         setSync('Save failed','error');
         toast('Save failed: '+message,'error');
@@ -1163,9 +1147,10 @@
     try {
       if (!state.estimateId || !state.projectId) {
         toast('Project eerst opslaan…');
-        await saveEstimate();
+        const saved=await saveEstimate({draft:false});
+        if(!saved) throw new Error('Save the calculation before creating an offerte.');
       }
-      if (!state.estimateId || !state.projectId) return;
+      if (!state.estimateId || !state.projectId) throw new Error('Save the calculation before creating an offerte.');
       if (!state.offerteProfile) await loadOfferteProfile();
 
       fillOfferteProfileForm(state.offerteProfile);
@@ -1415,6 +1400,7 @@
       setSync('Synced');
       toast('Offerte ' + row.offerte_number + ' opgeslagen en gedownload.');
       await loadProjectOffertes(state.projectId);
+      if(!byId('offersModal').hidden) await openOffersSpace();
     } catch (error) {
       setSync('Offerte failed','error');
       toast(error.message || 'Kon offerte niet maken.','error');
@@ -1445,6 +1431,7 @@
       setSync('Synced');
       toast('Offerte gemarkeerd als verzonden.');
       await loadProjectOffertes(state.projectId);
+      if(!byId('offersModal').hidden) await openOffersSpace();
     } catch (error) {
       if (error && error.name === 'AbortError') {
         setSync('Synced');
@@ -1464,6 +1451,58 @@
     if (!response.ok) throw new Error('Kon PDF niet laden.');
     const blob = await response.blob();
     downloadBlob(blob,row.offerte_number + '.pdf');
+  }
+
+
+  function closeOffersSpace(){ byId('offersModal').hidden=true; }
+
+  function renderAllOffertes(rows){
+    const list=byId('allOffertesList');
+    const items=Array.isArray(rows)?rows:[];
+    byId('offersCount').textContent=items.length+(items.length===1?' offer':' offers');
+    if(!items.length){
+      list.innerHTML='<div class="project-empty"><strong>No offers yet</strong><span>Create an offerte from a saved calculation and it will appear here.</span></div>';
+      return;
+    }
+    list.innerHTML=items.map((row)=>{
+      const date=row.created_at?dutchDate(row.created_at):'';
+      return '<article class="offer-card">'+
+        '<div><h3>'+escapeHtml(row.offerte_number)+'</h3>'+
+        '<div class="offer-client">'+escapeHtml(row.client_name||'Unnamed client')+' · '+escapeHtml(row.project_address||'No address')+'</div>'+
+        '<div class="offer-meta"><span>'+escapeHtml(date)+'</span><span>'+escapeHtml(row.status||'draft')+'</span></div></div>'+
+        '<div class="offer-actions"><div class="offer-total">'+euro(Number(row.total_inc_vat||0))+'</div>'+
+        '<button class="btn btn-secondary compact" type="button" data-all-offer-pdf="'+escapeHtml(row.id)+'">PDF</button></div>'+
+      '</article>';
+    }).join('');
+    list.querySelectorAll('[data-all-offer-pdf]').forEach((button)=>{
+      button.addEventListener('click',async()=>{
+        const row=items.find((x)=>x.id===button.getAttribute('data-all-offer-pdf'));
+        if(!row)return;
+        try{await downloadStoredOfferte(row);}catch(error){toast(error.message||'Could not load PDF.','error');}
+      });
+    });
+  }
+
+  function filterAllOffertes(){
+    const q=byId('offersSearch').value.trim().toLowerCase();
+    if(!q){renderAllOffertes(state.allOffertesRows);return;}
+    renderAllOffertes(state.allOffertesRows.filter((row)=>
+      [row.offerte_number,row.client_name,row.project_address,row.status,row.total_inc_vat]
+        .filter((v)=>v!=null).join(' ').toLowerCase().includes(q)
+    ));
+  }
+
+  async function openOffersSpace(){
+    byId('offersModal').hidden=false;
+    byId('offersSearch').value='';
+    byId('allOffertesList').innerHTML='<div class="gallery-loading">Loading offers…</div>';
+    try{
+      const rows=await rest('bathroom_offertes?select=*&order=created_at.desc');
+      state.allOffertesRows=Array.isArray(rows)?rows:[];
+      renderAllOffertes(state.allOffertesRows);
+    }catch(error){
+      byId('allOffertesList').innerHTML='<div class="project-empty"><strong>Could not load offers</strong><span>'+escapeHtml(error.message||'Please try again.')+'</span></div>';
+    }
   }
 
   async function loadProjectOffertes(projectId) {
@@ -1532,11 +1571,11 @@
       state.estimateId = null;
       state.projectId = projectId;
       byId('estimateState').textContent = 'New calculation';
-      await loadRecent();
       setSync('Synced');
       toast('Calculation deleted. Project, photos and offertes kept.');
       resetEstimate();
-      state.projectId = projectId;
+      state.projectId=projectId;
+      try{await loadProjectsSpace();}catch{}
     } catch (error) {
       setSync('Delete failed', 'error');
       toast('Delete failed: ' + (error.message || 'Could not delete calculation.'), 'error');
@@ -1611,27 +1650,16 @@
   }
 
   async function loadProjectsSpace() {
-    const list = byId('projectsList');
-    list.innerHTML = '<div class="gallery-loading">Loading saved projects…</div>';
-
-    const [projects, estimates, versions] = await Promise.all([
-      rest('bathroom_projects?select=id,title,client_name,client_phone,project_address,status,created_at,updated_at&order=updated_at.desc'),
-      rest('bathroom_estimates?deleted_at=is.null&select=id,project_id,total_inc_vat,updated_at&order=updated_at.desc'),
-      rest('bathroom_calculation_versions?select=project_id,id')
-    ]);
-
-    const latestByProject = {};
-    (Array.isArray(estimates) ? estimates : []).forEach((row) => {
-      if (row.project_id && !latestByProject[row.project_id]) latestByProject[row.project_id] = row;
-    });
-    const versionCounts = {};
-    (Array.isArray(versions) ? versions : []).forEach((row) => {
-      if (row.project_id) versionCounts[row.project_id] = (versionCounts[row.project_id] || 0) + 1;
-    });
-
-    state.projectsRows = (Array.isArray(projects) ? projects : []).map((row) => Object.assign({}, row, {
-      latest_estimate: latestByProject[row.id] || null,
-      version_count: versionCounts[row.id] || 0
+    const list=byId('projectsList');
+    list.innerHTML='<div class="gallery-loading">Loading saved projects…</div>';
+    const rows=await rest('rpc/get_bathroom_project_summaries',{method:'POST',body:{}});
+    state.projectsRows=(Array.isArray(rows)?rows:[]).map((row)=>Object.assign({},row,{
+      latest_estimate:row.latest_estimate_id?{
+        id:row.latest_estimate_id,
+        total_inc_vat:row.latest_total_inc_vat,
+        updated_at:row.latest_estimate_updated_at
+      }:null,
+      version_count:Number(row.version_count||0)
     }));
     renderProjects(state.projectsRows);
   }
@@ -1771,7 +1799,6 @@
     setSync('Connecting', 'busy');
     try {
       await loadPricing();
-      await loadRecent();
       await loadOfferteProfile();
       calculate();
       await openProjectsSpace();
@@ -1841,9 +1868,18 @@
       }
     });
     byId('deleteCalculationBtn').addEventListener('click', deleteCurrentCalculation);
+    byId('projectDeleteCalculationBtn').addEventListener('click', async () => {
+      closeVersions();
+      await deleteCurrentCalculation();
+    });
     byId('offerteBtn').addEventListener('click', openOfferteModal);
     byId('mobileProjectBtn').addEventListener('click', openProjectsSpace);
     byId('projectsBtn').addEventListener('click', openProjectsSpace);
+    byId('topOffersBtn').addEventListener('click', openOffersSpace);
+    byId('projectsOffersBtn').addEventListener('click', openOffersSpace);
+    byId('offersCloseBtn').addEventListener('click', closeOffersSpace);
+    byId('offersSearch').addEventListener('input', filterAllOffertes);
+    document.querySelectorAll('[data-offers-close]').forEach((el)=>el.addEventListener('click',closeOffersSpace));
     byId('projectsNewBtn').addEventListener('click', () => { closeProjectsSpace(); resetEstimate(); });
     byId('settingsBtn').addEventListener('click', openSettings);
     byId('projectsSettingsBtn').addEventListener('click', openSettings);
