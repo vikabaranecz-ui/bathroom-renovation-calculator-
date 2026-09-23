@@ -797,29 +797,99 @@
 
 
   let wizardQuestions = [];
+  let wizardGroups = [];
+
+  const GROUP_SHORT_NAMES = [
+    'Client',
+    'Measurements',
+    'Demolition',
+    'Plumbing',
+    'Products',
+    'Inspection',
+    'Review'
+  ];
 
   function questionText(label) {
-    const toggleText = label.querySelector('.toggle span, span');
-    if (label.classList.contains('toggle') && toggleText) return toggleText.textContent.trim();
+    if (label.classList.contains('toggle')) {
+      const toggleText = label.querySelector('span');
+      if (toggleText) return toggleText.textContent.trim();
+    }
 
     const clone = label.cloneNode(true);
     clone.querySelectorAll('input,select,textarea,span').forEach((node)=>node.remove());
     return clone.textContent.replace(/\s+/g,' ').trim() || 'Question';
   }
 
-  function questionSection(label) {
-    const panel = label.closest('.wizard-step');
+  function groupTitle(panel) {
     const heading = panel ? panel.querySelector('h2') : null;
-    return heading ? heading.textContent.trim() : '';
+    return heading ? heading.textContent.trim() : 'Inspection';
   }
 
   function buildQuestionFlow() {
-    wizardQuestions = Array.from(document.querySelectorAll('.wizard-step label'))
-      .filter((label)=>!label.closest('[hidden]'));
+    wizardQuestions = [];
+    wizardGroups = [];
 
-    wizardQuestions.forEach((label,index)=>{
-      label.classList.add('question-item');
-      label.setAttribute('data-question-index',String(index));
+    const panels = Array.from(document.querySelectorAll('.wizard-step'));
+
+    panels.forEach((panel,groupIndex)=>{
+      const labels = Array.from(panel.querySelectorAll('label'))
+        .filter((label)=>!label.closest('[hidden]'));
+
+      const group = {
+        index: groupIndex,
+        title: groupTitle(panel),
+        short: GROUP_SHORT_NAMES[groupIndex] || groupTitle(panel),
+        start: wizardQuestions.length,
+        count: labels.length
+      };
+
+      labels.forEach((label,questionIndex)=>{
+        const flatIndex = wizardQuestions.length;
+        label.classList.add('question-item');
+        label.setAttribute('data-question-index',String(flatIndex));
+        label.setAttribute('data-question-group',String(groupIndex));
+        label.setAttribute('data-question-in-group',String(questionIndex));
+        wizardQuestions.push({
+          element: label,
+          groupIndex,
+          questionIndex,
+          title: questionText(label)
+        });
+      });
+
+      wizardGroups.push(group);
+    });
+
+    wizardGroups.push({
+      index: wizardGroups.length,
+      title: 'Review & price',
+      short: 'Review',
+      start: wizardQuestions.length,
+      count: 1,
+      review: true
+    });
+
+    renderWizardGroups();
+  }
+
+  function renderWizardGroups() {
+    const nav=byId('wizardGroupNav');
+    if(!nav) return;
+
+    nav.innerHTML=wizardGroups.map((group)=>
+      '<span class="wizard-group-chip" data-wizard-group-chip="'+group.index+'">'+
+      escapeHtml(group.short)+'</span>'
+    ).join('');
+  }
+
+  function updateWizardGroupNav(activeGroupIndex) {
+    document.querySelectorAll('[data-wizard-group-chip]').forEach((chip)=>{
+      const index=Number(chip.getAttribute('data-wizard-group-chip'));
+      chip.classList.toggle('is-active',index===activeGroupIndex);
+      chip.classList.toggle('is-complete',index<activeGroupIndex);
+      if(index===activeGroupIndex){
+        chip.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
+      }
     });
   }
 
@@ -837,37 +907,44 @@
     document.body.classList.toggle('wizard-final',final);
 
     if(final){
+      const reviewGroup=wizardGroups[wizardGroups.length-1];
       byId('wizardReview').classList.add('is-active');
-      byId('wizardStepLabel').textContent='Review';
+      byId('wizardGroupLabel').textContent='REVIEW & PRICE';
+      byId('wizardStepLabel').textContent='Final step';
       byId('wizardStepTitle').textContent='Review & estimated client price';
       byId('wizardProgressBar').style.width='100%';
       byId('wizardBackBtn').disabled=total===0;
       byId('wizardNextBtn').textContent='Done';
+      updateWizardGroupNav(reviewGroup.index);
     }else{
       const current=wizardQuestions[state.wizardStep];
-      const panel=current.closest('.wizard-step');
+      const label=current.element;
+      const panel=label.closest('.wizard-step');
+      const group=wizardGroups[current.groupIndex];
+
       panel.classList.add('is-active');
-      current.classList.add('question-active');
+      label.classList.add('question-active');
 
-      byId('wizardStepLabel').textContent='Question '+(state.wizardStep+1)+' of '+total;
-      byId('wizardStepTitle').textContent=questionText(current);
+      byId('wizardGroupLabel').textContent=group.title.toUpperCase();
+      byId('wizardStepLabel').textContent=
+        'Question '+(current.questionIndex+1)+' of '+group.count;
+      byId('wizardStepTitle').textContent=current.title;
 
-      const sectionTitle=questionSection(current);
-      const head=panel.querySelector('.section-head h2');
-      if(head && sectionTitle) head.textContent=sectionTitle;
+      byId('wizardProgressBar').style.width=
+        (((state.wizardStep+1)/(total+1))*100)+'%';
 
-      byId('wizardProgressBar').style.width=(((state.wizardStep+1)/(total+1))*100)+'%';
       byId('wizardBackBtn').disabled=state.wizardStep===0;
       byId('wizardNextBtn').textContent='Next';
+      updateWizardGroupNav(current.groupIndex);
 
-      const focusable=current.querySelector('input,select,textarea');
+      const focusable=label.querySelector('input,select,textarea');
       if(focusable && !opts.noFocus){
         window.setTimeout(()=>focusable.focus({preventScroll:true}),120);
       }
     }
 
     if(!opts.noScroll){
-      const target=byId('wizardStepLabel');
+      const target=byId('wizardGroupLabel');
       if(target) target.scrollIntoView({behavior:'smooth',block:'start'});
     }
   }
@@ -877,11 +954,12 @@
     if(Number(index)>=6){
       setQuestion(wizardQuestions.length,options);
     }else{
-      setQuestion(0,options);
+      const group=wizardGroups[Math.max(0,Math.min(5,Number(index)||0))];
+      setQuestion(group ? group.start : 0,options);
     }
   }
 
-  function wizardNext(){
+  function wizardNext() {
     if(!wizardQuestions.length) buildQuestionFlow();
     if(state.wizardStep<wizardQuestions.length){
       setQuestion(state.wizardStep+1);
@@ -890,11 +968,12 @@
     }
   }
 
-  function wizardBack(){
+  function wizardBack() {
     if(!wizardQuestions.length) buildQuestionFlow();
     if(state.wizardStep>0) setQuestion(state.wizardStep-1);
   }
 
+  
   function resetEstimate() {
     closeGallery();
     setClientMode(false);
