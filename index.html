@@ -156,8 +156,132 @@
           </div>
         </section>
 
-        <section class="panel wizard-step" data-wizard-step="4">
-          <div class="section-head"><div><span class="step">05</span><h2>Client-selected products</h2></div><span class="pill neutral">Allowances</span></div>
+        <section class="panel wizard-step visual-builder-panel" data-wizard-step="4">
+          <div class="section-head visual-builder-head">
+            <div><span class="step">05</span><h2>Bathroom builder</h2></div>
+            <span class="pill neutral">Visual choices</span>
+          </div>
+          <p class="section-copy">Build the bathroom by choosing the installation style. These choices change labour and construction materials immediately. Product budgets remain editable in the next group.</p>
+
+          <div class="builder-question">
+            <div class="builder-question-head"><span>01</span><div><strong>Which toilet?</strong><small>Choose the installation type</small></div></div>
+            <div class="visual-choice-grid three">
+              <label class="visual-choice-card">
+                <input type="radio" name="toiletStyle" value="none" checked />
+                <div class="visual-placeholder"><span>No toilet</span></div>
+                <div class="visual-choice-copy"><strong>None</strong><small>No toilet installation</small></div>
+              </label>
+              <label class="visual-choice-card">
+                <input type="radio" name="toiletStyle" value="floor" />
+                <img src="https://images.unsplash.com/photo-1772476361253-90a9be5e0c19?auto=format&fit=crop&fm=jpg&ixlib=rb-4.1.0&q=70&w=1200" alt="Floor standing toilet example" loading="lazy" />
+                <div class="visual-choice-copy"><strong>Floor-standing</strong><small>Standard floor-mounted toilet</small><em>Standard install</em></div>
+              </label>
+              <label class="visual-choice-card">
+                <input type="radio" name="toiletStyle" value="wall" />
+                <img src="https://images.unsplash.com/photo-1744731057677-1da546411fa5?auto=format&fit=crop&fm=jpg&ixlib=rb-4.1.0&q=70&w=1200" alt="Wall hung toilet example" loading="lazy" />
+                <div class="visual-choice-copy"><strong>Wall-hung</strong><small>Concealed frame + wall-mounted toilet</small><em>More installation work</em></div>
+              </label>
+            </div>
+          </div>
+
+          <div class="builder-question">
+            <div class="builder-question-head"><span>02</span><div><strong>Which shower?</strong><small>Choose the plumbing + shower style</small></div></div>
+            <div class="visual-choice-grid three">
+              <label class="visual-choice-card">
+                <input type="radio" name="showerSystem" value="none" checked />
+                <div class="visual-placeholder"><span>No shower</span></div>
+                <div class="visual-choice-copy"><strong>None</strong><small>No shower installation</small></div>
+              </label>
+              <label class="visual-choice-card">
+                <input type="radio" name="showerSystem" value="exposed" />
+                <img src="https://images.unsplash.com/photo-1771372012124-f7696f374a5a?auto=format&fit=crop&fm=jpg&ixlib=rb-4.1.0&q=70&w=1200" alt="Exposed shower example" loading="lazy" />
+                <div class="visual-choice-copy"><strong>Exposed</strong><small>Visible mixer + walk-in shower</small><em>Standard install</em></div>
+              </label>
+              <label class="visual-choice-card">
+                <input type="radio" name="showerSystem" value="concealed" />
+                <img src="https://images.unsplash.com/photo-1772567732962-9c9a4dfff8d1?auto=format&fit=crop&fm=jpg&ixlib=rb-4.1.0&q=70&w=1200" alt="Concealed shower example" loading="lazy" />
+                <div class="visual-choice-copy"><strong>Concealed</strong><small>Built-in mixer + walk-in shower</small><em>More plumbing + wall work</em></div>
+              </label>
+            </div>
+          </div>
+
+          <div class="builder-question">
+            <div class="builder-question-head"><span>03</span><div><strong>Bath or no bath?</strong><small>Choose the installation style</small></div></div>
+            <div class="visual-choice-grid three">
+              <label class="visual-choice-card">
+                <input type="radio" name="bathStyle" value="none" checked />
+                <div class="visual-placeholder"><span>No bath</span></div>
+                <div class="visual-choice-copy"><strong>None</strong><small>No bathtub</small></div>
+              </label>
+              <label class="visual-choice-card">
+                <input type="radio" name="bathStyle" value="builtIn" />
+                <img src="https://images.unsplash.com/photo-1753605788101-04d1e653e74a?auto=format&fit=crop&fm=jpg&ixlib=rb-4.1.0&q=70&w=1200" alt="Built-in bathtub example" loading="lazy" />
+                <div class="visual-choice-copy"><strong>Built-in</strong><small>Bath with tiled / finished surround</small><em>Extra finishing</em></div>
+              </label>
+              <label class="visual-choice-card">
+                <input type="radio" name="bathStyle" value="free" />
+                <img src="https://images.unsplash.com/photo-1778731660076-f446d59aa1d0?auto=format&fit=crop&fm=jpg&ixlib=rb-4.1.0&q=70&w=1200" alt="Freestanding bathtub example" loading="lazy" />
+                <div class="visual-choice-copy"><strong>Freestanding</strong><small>Standalone bathtub</small><em>Cleaner install</em></div>
+              </label>
+            </div>
+          </div>
+
+          <div class="builder-question">
+            <div class="builder-question-head"><span>04</span><div><strong>Which vanity?</strong><small>Choose basin / furniture type</small></div></div>
+            <div class="visual-choice-grid three">
+              <label class="visual-choice-card">
+                <input type="radio" name="vanityStyle" value="none" checked />
+                <div class="visual-placeholder"><span>No vanity</span></div>
+                <div class="visual-choice-copy"><strong>None</strong><small>No vanity installation</small></div>
+              </label>
+              <label class="visual-choice-card">
+                <input type="radio" name="vanityStyle" value="integrated" />
+                <img src="https://images.unsplash.com/photo-1772567732962-9c9a4dfff8d1?auto=format&fit=crop&fm=jpg&ixlib=rb-4.1.0&q=70&w=1200" alt="Integrated vanity example" loading="lazy" />
+                <div class="visual-choice-copy"><strong>Integrated basin</strong><small>Furniture + integrated sink</small><em>Standard install</em></div>
+              </label>
+              <label class="visual-choice-card">
+                <input type="radio" name="vanityStyle" value="countertop" />
+                <img src="https://images.unsplash.com/photo-1771372012124-f7696f374a5a?auto=format&fit=crop&fm=jpg&ixlib=rb-4.1.0&q=70&w=1200" alt="Countertop basin example" loading="lazy" />
+                <div class="visual-choice-copy"><strong>Countertop basin</strong><small>Furniture + separate vessel basin</small><em>Extra fitting work</em></div>
+              </label>
+            </div>
+          </div>
+
+          <div class="builder-question">
+            <div class="builder-question-head"><span>05</span><div><strong>Wall finish?</strong><small>Visual choice also updates the measurement section</small></div></div>
+            <div class="visual-choice-grid three">
+              <label class="visual-choice-card">
+                <input type="radio" name="visualWallFinish" value="none" checked />
+                <div class="visual-placeholder"><span>Keep existing</span></div>
+                <div class="visual-choice-copy"><strong>No new finish</strong><small>Keep existing wall finish</small></div>
+              </label>
+              <label class="visual-choice-card">
+                <input type="radio" name="visualWallFinish" value="tile" />
+                <img src="https://images.unsplash.com/photo-1753605788101-04d1e653e74a?auto=format&fit=crop&fm=jpg&ixlib=rb-4.1.0&q=70&w=1200" alt="Tiled bathroom finish example" loading="lazy" />
+                <div class="visual-choice-copy"><strong>Tiles</strong><small>New tiled wall finish</small></div>
+              </label>
+              <label class="visual-choice-card">
+                <input type="radio" name="visualWallFinish" value="mortex" />
+                <img src="https://images.unsplash.com/photo-1772567732962-9c9a4dfff8d1?auto=format&fit=crop&fm=jpg&ixlib=rb-4.1.0&q=70&w=1200" alt="Microcement style bathroom finish example" loading="lazy" />
+                <div class="visual-choice-copy"><strong>Mortex</strong><small>Seamless decorative finish</small></div>
+              </label>
+            </div>
+          </div>
+
+          <div class="builder-question compact-builder-question">
+            <div class="builder-question-head"><span>06</span><div><strong>Extra comfort</strong><small>Select any options</small></div></div>
+            <div class="visual-extra-grid">
+              <label class="visual-extra-card"><input id="builderNiche" type="checkbox" /><span>Shower niche</span><small>Built-in niche in wet area</small></label>
+              <label class="visual-extra-card"><input id="builderLedMirror" type="checkbox" /><span>LED mirror</span><small>Electrical connection + fitting</small></label>
+              <label class="visual-extra-card"><input id="builderRadiator" type="checkbox" /><span>Towel radiator</span><small>Radiator installation</small></label>
+              <label class="visual-extra-card"><input id="builderFloorHeating" type="checkbox" /><span>Floor heating</span><small>Electric floor heating</small></label>
+              <label class="visual-extra-card"><input id="builderVentilation" type="checkbox" /><span>Ventilation</span><small>Mechanical ventilation</small></label>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel wizard-step" data-wizard-step="5">
+          <div class="section-head"><div><span class="step">06</span><h2>Client-selected products</h2></div><span class="pill neutral">Allowances</span></div>
           <p class="section-copy">Keep product quality separate from labour. Enter the amount you expect to spend on the selected sanitary products.</p>
           <div class="form-grid two">
             <label>Shower / glass / drain <span>€</span><input id="allowShower" type="number" min="0" step="10" value="0" /></label>
@@ -171,7 +295,7 @@
 
         
 
-        <section class="panel wizard-step" data-wizard-step="5">
+        <section class="panel wizard-step" data-wizard-step="6">
           <div class="section-head"><div><span class="step">07</span><h2>Inspection confidence</h2></div></div>
           <div class="toggle-grid">
             <label class="toggle"><input class="confidence" type="checkbox" /><span>Measurements confirmed</span></label>
@@ -183,7 +307,7 @@
           </div>
         </section>
 
-        <section id="wizardReview" class="panel wizard-review" data-wizard-step="6">
+        <section id="wizardReview" class="panel wizard-review" data-wizard-step="7">
           <p class="eyebrow">Final step</p>
           <h2>Review your estimate</h2>
           <p class="section-copy">Check the scope and final client price below. You can go back to change any answer before saving or creating the offerte.</p>
