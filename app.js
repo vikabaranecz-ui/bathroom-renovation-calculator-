@@ -570,10 +570,21 @@
     if (drainMoves) addLine(lines, 'Move drains', drainMoves * p.drainMoveHours, drainMoves * p.drainMoveMaterials, drainMoves + ' drain(s)');
     if (electricPoints) addLine(lines, 'Electrical work', electricPoints * p.electricHours, electricPoints * p.electricMaterials, electricPoints + ' point(s)');
 
-    if (checked('shower')) addLine(lines, 'Install walk-in shower', 12, 180);
-    if (checked('bath')) addLine(lines, 'Install bathtub', 10, 160);
-    if (checked('toilet')) addLine(lines, 'Install toilet', 8, 120);
-    if (checked('vanity')) addLine(lines, 'Install vanity & basin', 6, 90);
+    const toiletStyle=document.querySelector('input[name="toiletStyle"]:checked')?.value || (checked('toilet')?'floor':'none');
+    const showerSystem=document.querySelector('input[name="showerSystem"]:checked')?.value || (checked('shower')?'exposed':'none');
+    const bathStyle=document.querySelector('input[name="bathStyle"]:checked')?.value || (checked('bath')?'builtIn':'none');
+    const vanityStyle=document.querySelector('input[name="vanityStyle"]:checked')?.value || (checked('vanity')?'integrated':'none');
+
+    if (showerSystem === 'exposed') addLine(lines, 'Install walk-in shower · exposed mixer', 12, 180);
+    if (showerSystem === 'concealed') addLine(lines, 'Install walk-in shower · concealed mixer', 17, 320);
+    if (bathStyle === 'builtIn') addLine(lines, 'Install built-in bathtub', 13, 240);
+    if (bathStyle === 'free') addLine(lines, 'Install freestanding bathtub', 9, 140);
+    if (toiletStyle === 'floor') addLine(lines, 'Install floor-standing toilet', 8, 120);
+    if (toiletStyle === 'wall') addLine(lines, 'Install wall-hung toilet + concealed frame', 13, 280);
+    if (vanityStyle === 'integrated') addLine(lines, 'Install vanity & integrated basin', 6, 90);
+    if (vanityStyle === 'countertop') addLine(lines, 'Install vanity & countertop basin', 8, 130);
+    if (checked('builderNiche')) addLine(lines, 'Build shower niche', 4, 90);
+    if (checked('builderLedMirror')) addLine(lines, 'Install LED mirror', 3, 65);
     if (checked('radiator')) addLine(lines, 'Install towel radiator', 5, 110);
     if (checked('ventilation')) addLine(lines, 'Mechanical ventilation', 5, 180);
     if (checked('ceilingPaint')) addLine(lines, 'Ceiling repair / painting', Math.max(6, floor * 0.7), Math.max(100, floor * 16));
@@ -716,7 +727,14 @@
       allowVanity: num('allowVanity'),
       allowMechanical: num('allowMechanical'),
       allowOther: num('allowOther'),
-      clientEmail: byId('clientEmail').value.trim()
+      clientEmail: byId('clientEmail').value.trim(),
+      toiletStyle: document.querySelector('input[name="toiletStyle"]:checked')?.value || 'none',
+      showerSystem: document.querySelector('input[name="showerSystem"]:checked')?.value || 'none',
+      bathStyle: document.querySelector('input[name="bathStyle"]:checked')?.value || 'none',
+      vanityStyle: document.querySelector('input[name="vanityStyle"]:checked')?.value || 'none',
+      visualWallFinish: document.querySelector('input[name="visualWallFinish"]:checked')?.value || 'none',
+      showerNiche: checked('builderNiche'),
+      ledMirror: checked('builderLedMirror')
     };
   }
 
@@ -726,6 +744,28 @@
 
   function setCheck(id, value) {
     if (byId(id)) byId(id).checked = Boolean(value);
+  }
+
+  function setRadio(name, value) {
+    const input=document.querySelector('input[name="'+name+'"][value="'+String(value||'none')+'"]');
+    if(input) input.checked=true;
+  }
+
+  function syncBuilderToLegacyControls() {
+    const toilet=document.querySelector('input[name="toiletStyle"]:checked')?.value || 'none';
+    const shower=document.querySelector('input[name="showerSystem"]:checked')?.value || 'none';
+    const bath=document.querySelector('input[name="bathStyle"]:checked')?.value || 'none';
+    const vanity=document.querySelector('input[name="vanityStyle"]:checked')?.value || 'none';
+    const finish=document.querySelector('input[name="visualWallFinish"]:checked')?.value || 'none';
+
+    setCheck('toilet',toilet!=='none');
+    setCheck('shower',shower!=='none');
+    setCheck('bath',bath!=='none');
+    setCheck('vanity',vanity!=='none');
+    setCheck('radiator',checked('builderRadiator'));
+    setCheck('floorHeating',checked('builderFloorHeating'));
+    setCheck('ventilation',checked('builderVentilation'));
+    if(byId('wallFinish') && finish) byId('wallFinish').value=finish;
   }
 
   function fillEstimate(record) {
@@ -775,6 +815,18 @@
     setValue('allowMechanical', selections.allowMechanical);
     setValue('allowOther', selections.allowOther);
     setValue('clientEmail', selections.clientEmail || '');
+    setRadio('toiletStyle', selections.toiletStyle || (scope.toilet ? 'floor' : 'none'));
+    setRadio('showerSystem', selections.showerSystem || (scope.shower ? 'exposed' : 'none'));
+    setRadio('bathStyle', selections.bathStyle || (scope.bath ? 'builtIn' : 'none'));
+    setRadio('vanityStyle', selections.vanityStyle || (scope.vanity ? 'integrated' : 'none'));
+    setRadio('visualWallFinish', selections.visualWallFinish || scope.wallFinish || 'none');
+    setCheck('builderNiche', selections.showerNiche);
+    setCheck('builderLedMirror', selections.ledMirror);
+    setCheck('builderRadiator', scope.radiator);
+    setCheck('builderFloorHeating', scope.floorHeating);
+    setCheck('builderVentilation', scope.ventilation);
+
+    syncBuilderToLegacyControls();
 
     if (record.pricing_snapshot && Object.keys(record.pricing_snapshot).length) {
       state.pricing = Object.assign({}, DEFAULT_PRICING, record.pricing_snapshot);
@@ -804,6 +856,7 @@
     'Measurements',
     'Demolition',
     'Plumbing',
+    'Builder',
     'Products',
     'Inspection',
     'Review'
@@ -2255,6 +2308,7 @@
 
     document.querySelectorAll('#app input, #app select, #app textarea').forEach((el) => {
       const onEdit = () => {
+        if(el.closest('.visual-builder-panel')) syncBuilderToLegacyControls();
         calculate();
         if(!el.matches('[data-price],[data-price-check]')){
           markUnsaved();
